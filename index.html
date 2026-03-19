@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0D2B1F">
+<title>Golden Circle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --dark:   #0D2B1F;
+  --green:  #1D9E75;
+  --teal:   #0F6E56;
+  --mint:   #9FE1CB;
+  --light:  #E1F5EE;
+  --white:  #FFFFFF;
+  --gray:   #64748B;
+  --lgray:  #F1F5F2;
+  --amber:  #EF9F27;
+  --red:    #E24B4A;
+  --purple: #AFA9EC;
+  --card:   #F8FFFE;
+  --border: rgba(29,158,117,0.15);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--dark);
+  color: var(--white);
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+/* ── SPLASH ── */
+#splash {
+  position: fixed; inset: 0; background: var(--dark);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 999; transition: opacity 0.5s ease;
+}
+#splash .logo-ring {
+  width: 80px; height: 80px; border-radius: 50%;
+  border: 3px solid var(--green);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 20px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+#splash .logo-inner {
+  width: 54px; height: 54px; border-radius: 50%;
+  background: var(--green);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px; color: var(--dark);
+}
+#splash h1 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: 0.08em; }
+#splash p  { font-size: 12px; color: var(--mint); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 4px; }
+@keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
+#splash.hidden { opacity: 0; pointer-events: none; }
+
+/* ── SHELL ── */
+#app { display: flex; flex-direction: column; min-height: 100dvh; }
+
+/* ── TOPBAR ── */
+.topbar {
+  padding: calc(var(--safe-top) + 14px) 20px 14px;
+  background: var(--dark);
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+  border-bottom: 1px solid rgba(29,158,117,0.12);
+}
+.topbar-left { display: flex; align-items: center; gap: 10px; }
+.topbar-badge {
+  width: 34px; height: 34px; border-radius: 50%; background: var(--green);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 11px; color: var(--dark);
+}
+.topbar-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; }
+.topbar-sub   { font-size: 11px; color: var(--mint); margin-top: 1px; }
+.topbar-sync  {
+  width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--border);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: background 0.2s;
+}
+.topbar-sync:active { background: rgba(29,158,117,0.1); }
+.topbar-sync svg { width: 16px; height: 16px; stroke: var(--mint); fill: none; stroke-width: 2; stroke-linecap: round; }
+.sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: blink 2s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── TABS ── */
+.tab-scroller { overflow-x: auto; scrollbar-width: none; background: var(--dark); }
+.tab-scroller::-webkit-scrollbar { display: none; }
+.tab-row { display: flex; gap: 6px; padding: 10px 16px; width: max-content; }
+.tab-btn {
+  padding: 7px 16px; border-radius: 20px; font-size: 13px; font-weight: 500;
+  border: 1.5px solid rgba(255,255,255,0.1); background: transparent;
+  color: rgba(255,255,255,0.5); cursor: pointer; white-space: nowrap;
+  transition: all 0.2s; font-family: 'DM Sans', sans-serif;
+}
+.tab-btn.active { background: var(--green); border-color: var(--green); color: var(--dark); font-weight: 600; }
+
+/* ── MAIN CONTENT ── */
+.main { flex: 1; overflow-y: auto; padding: 16px 16px calc(80px + var(--safe-bottom)); background: var(--lgray); }
+
+/* ── SECTION ── */
+.screen { display: none; }
+.screen.active { display: block; animation: fadeUp 0.3s ease; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* ── SUMMARY CARDS ── */
+.summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.summary-card {
+  background: var(--white); border-radius: 14px; padding: 14px;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+.summary-card .sc-label { font-size: 11px; color: var(--gray); margin-bottom: 4px; }
+.summary-card .sc-val   { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 18px; color: #1a1a1a; line-height: 1.1; }
+.summary-card .sc-sub   { font-size: 11px; margin-top: 3px; }
+.summary-card.accent    { background: var(--dark); }
+.summary-card.accent .sc-label { color: var(--mint); }
+.summary-card.accent .sc-val   { color: var(--white); }
+.summary-card.accent .sc-sub   { color: var(--mint); }
+
+/* ── ALLOCATION BAR ── */
+.alloc-wrap { background: var(--white); border-radius: 14px; padding: 14px; margin-bottom: 16px; }
+.alloc-title { font-size: 12px; font-weight: 600; color: var(--gray); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+.alloc-bar { display: flex; border-radius: 8px; overflow: hidden; height: 32px; }
+.alloc-seg { display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; transition: flex 0.5s ease; }
+.alloc-legend { display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.alloc-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--gray); }
+.alloc-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+/* ── CHART CARD ── */
+.chart-card { background: var(--white); border-radius: 14px; padding: 14px; margin-bottom: 16px; }
+.chart-card .cc-title { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 12px; }
+.chart-wrap { position: relative; width: 100%; height: 180px; }
+
+/* ── ENTRY FORM ── */
+.entry-card { background: var(--white); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+.entry-card .ec-title { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 14px; }
+.field-group { margin-bottom: 12px; }
+.field-group label { display: block; font-size: 12px; color: var(--gray); margin-bottom: 5px; font-weight: 500; }
+.field-group input, .field-group select {
+  width: 100%; padding: 11px 14px; border-radius: 10px;
+  border: 1.5px solid rgba(0,0,0,0.1); background: var(--lgray);
+  font-size: 14px; font-family: 'DM Sans', sans-serif; color: #1a1a1a;
+  outline: none; transition: border-color 0.2s;
+}
+.field-group input:focus, .field-group select:focus { border-color: var(--green); background: var(--white); }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn-primary {
+  width: 100%; padding: 14px; border-radius: 12px;
+  background: var(--green); border: none; color: var(--dark);
+  font-size: 15px; font-weight: 700; font-family: 'Syne', sans-serif;
+  cursor: pointer; transition: all 0.2s; letter-spacing: 0.02em;
+}
+.btn-primary:active { transform: scale(0.98); background: var(--teal); }
+.btn-secondary {
+  width: 100%; padding: 12px; border-radius: 12px;
+  background: transparent; border: 1.5px solid var(--border);
+  color: var(--green); font-size: 14px; font-weight: 600;
+  font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all 0.2s; margin-top: 8px;
+}
+.btn-secondary:active { background: rgba(29,158,117,0.08); }
+
+/* ── PREVIEW SPLITS ── */
+.splits-preview { background: var(--lgray); border-radius: 10px; padding: 12px; margin: 12px 0; }
+.splits-preview .sp-title { font-size: 11px; color: var(--gray); font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+.splits-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.split-item .si-label { font-size: 10px; color: var(--gray); }
+.split-item .si-val   { font-size: 13px; font-weight: 700; margin-top: 2px; }
+
+/* ── DATA TABLE ── */
+.table-card { background: var(--white); border-radius: 14px; overflow: hidden; margin-bottom: 14px; }
+.table-header { display: grid; padding: 10px 14px; background: var(--dark); }
+.table-header span { font-size: 11px; color: var(--mint); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.table-row { display: grid; padding: 11px 14px; border-bottom: 1px solid rgba(0,0,0,0.05); align-items: center; }
+.table-row:last-child { border-bottom: none; }
+.table-row:nth-child(even) { background: var(--lgray); }
+.group-row-label { padding: 7px 14px; background: var(--light); font-size: 11px; font-weight: 700; color: var(--teal); text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* ── INSIGHT CARDS ── */
+.insight-card {
+  border-radius: 14px; padding: 14px; margin-bottom: 10px;
+  border-left: 4px solid var(--green);
+}
+.insight-card .ic-title { font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 5px; }
+.insight-card .ic-body  { font-size: 12px; color: var(--gray); line-height: 1.6; }
+
+/* ── BOTTOM NAV ── */
+.bottom-nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--dark); border-top: 1px solid rgba(29,158,117,0.15);
+  display: flex; padding: 8px 0 calc(8px + var(--safe-bottom));
+  z-index: 100;
+}
+.nav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  gap: 3px; cursor: pointer; padding: 4px 0; transition: all 0.2s;
+}
+.nav-icon { width: 22px; height: 22px; }
+.nav-icon svg { width: 100%; height: 100%; stroke: rgba(255,255,255,0.3); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: stroke 0.2s; }
+.nav-label { font-size: 10px; color: rgba(255,255,255,0.3); transition: color 0.2s; font-weight: 500; }
+.nav-item.active .nav-icon svg { stroke: var(--green); }
+.nav-item.active .nav-label   { color: var(--green); }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; top: calc(var(--safe-top) + 70px); left: 50%; transform: translateX(-50%) translateY(-20px);
+  background: var(--dark); color: var(--white); padding: 10px 20px; border-radius: 20px;
+  font-size: 13px; border: 1px solid var(--border); opacity: 0; transition: all 0.3s;
+  z-index: 999; white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── SETUP SCREEN ── */
+.setup-card { background: var(--white); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+.setup-card h3 { font-size: 14px; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; }
+.setup-card p  { font-size: 12px; color: var(--gray); line-height: 1.6; margin-bottom: 12px; }
+.setup-card code { display: block; background: var(--lgray); padding: 10px; border-radius: 8px; font-size: 11px; color: var(--teal); word-break: break-all; margin-bottom: 10px; font-family: monospace; }
+.step-badge { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--green); color: var(--dark); font-size: 11px; font-weight: 700; margin-right: 6px; }
+.status-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.06); }
+.status-row:last-child { border-bottom: none; }
+.status-row span { font-size: 13px; color: #1a1a1a; }
+.status-pill { padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.status-pill.ok  { background: var(--light); color: var(--teal); }
+.status-pill.err { background: #FFF5F5; color: var(--red); }
+.status-pill.pending { background: #FFFBEB; color: var(--amber); }
+
+/* ── SECTION HEADER ── */
+.section-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.section-hdr h2 { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: #1a1a1a; }
+.section-hdr span { font-size: 11px; color: var(--gray); }
+
+/* ── GROWTH BADGE ── */
+.grow { color: var(--green); font-weight: 600; }
+.drop { color: var(--red);   font-weight: 600; }
+.neut { color: var(--gray); }
+
+/* ── UNIT SELECTOR ── */
+.unit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.unit-card {
+  background: var(--white); border-radius: 12px; padding: 12px;
+  border: 2px solid transparent; cursor: pointer; transition: all 0.2s;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.unit-card.active { border-color: var(--green); background: var(--light); }
+.unit-card .uc-icon { font-size: 18px; margin-bottom: 2px; }
+.unit-card .uc-name { font-size: 12px; font-weight: 700; color: #1a1a1a; }
+.unit-card .uc-sub  { font-size: 10px; color: var(--gray); }
+
+/* ── EMPTY STATE ── */
+.empty-state { text-align: center; padding: 40px 20px; color: var(--gray); }
+.empty-state .es-icon { font-size: 36px; margin-bottom: 10px; }
+.empty-state p { font-size: 13px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="logo-ring">
+    <div class="logo-inner">GC</div>
+  </div>
+  <h1>GOLDEN CIRCLE</h1>
+  <p>Business Tracker</p>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- APP SHELL -->
+<div id="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-badge">GC</div>
+      <div>
+        <div class="topbar-title">Golden Circle</div>
+        <div class="topbar-sub" id="topbar-unit">GameZone</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="sync-dot" id="sync-dot" title="Sync status"></div>
+      <div class="topbar-sync" onclick="syncNow()" title="Sync now">
+        <svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- UNIT TABS -->
+  <div class="tab-scroller">
+    <div class="tab-row" id="unit-tabs">
+      <button class="tab-btn active" onclick="switchUnit('gamezone',this)">GameZone</button>
+      <button class="tab-btn" onclick="switchUnit('agro',this)">Agro-Business</button>
+      <button class="tab-btn" onclick="switchUnit('mse',this)">MSE Investments</button>
+      <button class="tab-btn" onclick="switchUnit('partner',this)">Partnership</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main" id="main-content">
+
+    <!-- ── DASHBOARD SCREEN ── -->
+    <div class="screen active" id="screen-dashboard">
+
+      <div class="section-hdr" style="margin-top:4px;">
+        <h2 id="dash-unit-title">GameZone</h2>
+        <span id="dash-period">Jan–Mar 2026</span>
+      </div>
+
+      <div class="summary-grid" id="summary-grid"></div>
+
+      <div class="alloc-wrap" id="alloc-section">
+        <div class="alloc-title">Revenue allocation</div>
+        <div class="alloc-bar" id="alloc-bar"></div>
+        <div class="alloc-legend" id="alloc-legend"></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="cc-title">Weekly trend</div>
+        <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+      </div>
+
+      <div id="insights-section"></div>
+
+    </div>
+
+    <!-- ── ENTRY SCREEN ── -->
+    <div class="screen" id="screen-entry">
+      <div class="entry-card">
+        <div class="ec-title">Add weekly entry</div>
+
+        <div class="field-group">
+          <label>Business unit</label>
+          <select id="entry-unit" onchange="updateEntryUnit()">
+            <option value="gamezone">GameZone</option>
+            <option value="agro">Agro-Business</option>
+            <option value="mse">MSE Investments</option>
+            <option value="partner">Partnership (George)</option>
+          </select>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label>Week label</label>
+            <input type="text" id="entry-week" placeholder="e.g. 22 Mar 2026">
+          </div>
+          <div class="field-group">
+            <label>Group / Month</label>
+            <input type="text" id="entry-group" placeholder="e.g. March 2026">
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label>Total revenue (MK)</label>
+          <input type="number" id="entry-amount" placeholder="e.g. 71000" min="0" oninput="previewSplits()">
+        </div>
+
+        <div class="splits-preview" id="splits-preview" style="display:none;">
+          <div class="sp-title">Auto splits</div>
+          <div class="splits-grid">
+            <div class="split-item">
+              <div class="si-label">Resources 50%</div>
+              <div class="si-val" style="color:var(--teal);" id="sp-res">—</div>
+            </div>
+            <div class="split-item">
+              <div class="si-label">Savings 40%</div>
+              <div class="si-val" style="color:var(--purple);" id="sp-sav">—</div>
+            </div>
+            <div class="split-item">
+              <div class="si-label">Emergency 10%</div>
+              <div class="si-val" style="color:var(--amber);" id="sp-emg">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-group" id="entry-notes-group">
+          <label>Notes (optional)</label>
+          <input type="text" id="entry-notes" placeholder="Any context for this week">
+        </div>
+
+        <button class="btn-primary" onclick="submitEntry()">Save Entry</button>
+        <button class="btn-secondary" onclick="clearEntryForm()">Clear</button>
+      </div>
+    </div>
+
+    <!-- ── HISTORY SCREEN ── -->
+    <div class="screen" id="screen-history">
+      <div class="section-hdr">
+        <h2>All Entries</h2>
+        <span id="history-count">0 records</span>
+      </div>
+      <div id="history-table"></div>
+    </div>
+
+    <!-- ── SETUP SCREEN ── -->
+    <div class="screen" id="screen-setup">
+
+      <div class="setup-card">
+        <h3>Google Sheets sync</h3>
+        <p>Connect to a shared Google Sheet so the whole team sees the same data in real time.</p>
+
+        <div class="status-row">
+          <span>Connection status</span>
+          <span class="status-pill" id="conn-status-pill">Not configured</span>
+        </div>
+        <div class="status-row">
+          <span>Last sync</span>
+          <span style="font-size:12px;color:var(--gray);" id="last-sync-time">Never</span>
+        </div>
+        <div class="status-row">
+          <span>Records synced</span>
+          <span style="font-size:12px;color:var(--gray);" id="sync-count">0</span>
+        </div>
+      </div>
+
+      <div class="setup-card">
+        <h3><span class="step-badge">1</span>Create your Google Sheet</h3>
+        <p>Open Google Sheets and create a new spreadsheet. Name it <b>Golden Circle Tracker</b>. Make sure headers in row 1 are: <b>unit, week, group, amount, notes, timestamp</b></p>
+      </div>
+
+      <div class="setup-card">
+        <h3><span class="step-badge">2</span>Create a Google Apps Script</h3>
+        <p>In your Sheet, go to <b>Extensions → Apps Script</b>. Delete any code there and paste this:</p>
+        <code id="script-code">function doPost(e){
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName("Sheet1") || ss.getActiveSheet();
+  var d  = JSON.parse(e.postData.contents);
+  if(d.action === "write"){
+    sh.appendRow([d.unit,d.week,d.group,d.amount,d.notes,d.timestamp]);
+    return ContentService.createTextOutput(JSON.stringify({ok:true})).setMimeType(ContentService.MimeType.JSON);
+  }
+  if(d.action === "read"){
+    var rows = sh.getDataRange().getValues();
+    return ContentService.createTextOutput(JSON.stringify({rows:rows})).setMimeType(ContentService.MimeType.JSON);
+  }
+}</code>
+        <button class="btn-secondary" onclick="copyScript()" style="margin-top:0;">Copy script</button>
+      </div>
+
+      <div class="setup-card">
+        <h3><span class="step-badge">3</span>Deploy as Web App</h3>
+        <p>Click <b>Deploy → New deployment → Web app</b>. Set "Execute as" to <b>Me</b> and "Who has access" to <b>Anyone</b>. Copy the Web App URL and paste it below.</p>
+        <div class="field-group">
+          <label>Your Web App URL</label>
+          <input type="url" id="sheet-url" placeholder="https://script.google.com/macros/s/..." oninput="saveSheetUrl()">
+        </div>
+        <button class="btn-primary" onclick="testConnection()">Test connection</button>
+      </div>
+
+      <div class="setup-card">
+        <h3>App info</h3>
+        <div class="status-row"><span>Version</span><span style="font-size:12px;color:var(--gray);">1.0.0</span></div>
+        <div class="status-row"><span>Total records (local)</span><span style="font-size:12px;color:var(--gray);" id="local-count">0</span></div>
+        <div class="status-row"><span>Units tracked</span><span style="font-size:12px;color:var(--gray);">4</span></div>
+        <div class="status-row"><span>Prepared for</span><span style="font-size:12px;color:var(--gray);">The Golden Circle</span></div>
+        <button class="btn-secondary" style="margin-top:12px;" onclick="exportCSV()">Export all data as CSV</button>
+        <button class="btn-secondary" style="border-color:rgba(228,75,74,0.3);color:var(--red);margin-top:6px;" onclick="clearAllData()">Clear all local data</button>
+      </div>
+
+    </div>
+
+  </div><!-- /main -->
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <div class="nav-item active" onclick="switchScreen('dashboard',this)">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </div>
+      <span class="nav-label">Dashboard</span>
+    </div>
+    <div class="nav-item" onclick="switchScreen('entry',this)">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      </div>
+      <span class="nav-label">Add Entry</span>
+    </div>
+    <div class="nav-item" onclick="switchScreen('history',this)">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      </div>
+      <span class="nav-label">History</span>
+    </div>
+    <div class="nav-item" onclick="switchScreen('setup',this)">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </div>
+      <span class="nav-label">Settings</span>
+    </div>
+  </nav>
+
+</div><!-- /app -->
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────────────
+const UNITS = {
+  gamezone: { name: 'GameZone',           icon: '🎮', color: '#1D9E75', splits: true  },
+  agro:     { name: 'Agro-Business',      icon: '🌱', color: '#639922', splits: false },
+  mse:      { name: 'MSE Investments',    icon: '📈', color: '#7F77DD', splits: false },
+  partner:  { name: 'Partnership (George)',icon: '🤝', color: '#EF9F27', splits: false },
+};
+
+let currentUnit   = 'gamezone';
+let currentScreen = 'dashboard';
+let trendChartInst = null;
+let db = JSON.parse(localStorage.getItem('gc_data') || '[]');
+let sheetUrl = localStorage.getItem('gc_sheet_url') || '';
+
+// Seed GameZone data if empty
+if (!db.length) {
+  const seed = [
+    {unit:'gamezone',week:'11 Jan 2026',group:'January 2026',amount:61000,notes:'',timestamp:'2026-01-11'},
+    {unit:'gamezone',week:'18 Jan 2026',group:'January 2026',amount:61000,notes:'',timestamp:'2026-01-18'},
+    {unit:'gamezone',week:'25 Jan 2026',group:'January 2026',amount:46000,notes:'Possible holiday dip',timestamp:'2026-01-25'},
+    {unit:'gamezone',week:'01 Feb 2026',group:'January 2026',amount:72000,notes:'',timestamp:'2026-02-01'},
+    {unit:'gamezone',week:'09 Feb 2026',group:'February 2026',amount:63000,notes:'',timestamp:'2026-02-09'},
+    {unit:'gamezone',week:'15 Feb 2026',group:'February 2026',amount:61000,notes:'',timestamp:'2026-02-15'},
+    {unit:'gamezone',week:'22 Feb 2026',group:'February 2026',amount:70000,notes:'',timestamp:'2026-02-22'},
+    {unit:'gamezone',week:'01 Mar 2026',group:'February 2026',amount:72000,notes:'',timestamp:'2026-03-01'},
+    {unit:'gamezone',week:'08 Mar 2026',group:'March 2026',amount:71000,notes:'',timestamp:'2026-03-08'},
+    {unit:'gamezone',week:'15 Mar 2026',group:'March 2026',amount:71000,notes:'',timestamp:'2026-03-15'},
+  ];
+  db = seed;
+  saveDB();
+}
+
+if (sheetUrl) document.getElementById('sheet-url').value = sheetUrl;
+
+// ── UTILS ──────────────────────────────────────────────────────────────
+function saveDB() { localStorage.setItem('gc_data', JSON.stringify(db)); }
+function mk(n)    { return 'MK ' + Math.round(n).toLocaleString(); }
+function pct(c,p) { if(!p) return null; return ((c-p)/p*100).toFixed(1); }
+function growBadge(p, inline=false) {
+  if (p===null) return '<span class="neut">—</span>';
+  const cls = p>=0?'grow':'drop', sign = p>=0?'+':'';
+  return `<span class="${cls}">${sign}${p}%</span>`;
+}
+
+function toast(msg, duration=2500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), duration);
+}
+
+function getUnitData(unit) { return db.filter(r => r.unit === unit); }
+
+// ── NAVIGATION ────────────────────────────────────────────────────────
+function switchScreen(name, el) {
+  currentScreen = name;
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'history')   renderHistory();
+  if (name === 'setup')     renderSetup();
+}
+
+function switchUnit(unit, el) {
+  currentUnit = unit;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('topbar-unit').textContent = UNITS[unit].name;
+  document.getElementById('entry-unit').value = unit;
+  updateEntryUnit();
+  if (currentScreen === 'dashboard') renderDashboard();
+  if (currentScreen === 'history')   renderHistory();
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────────────
+function renderDashboard() {
+  const data = getUnitData(currentUnit);
+  const u    = UNITS[currentUnit];
+  document.getElementById('dash-unit-title').textContent = u.name;
+
+  // Summary cards
+  const total = data.reduce((a,r) => a+r.amount, 0);
+  const last  = data.length ? data[data.length-1].amount : 0;
+  const prev  = data.length > 1 ? data[data.length-2].amount : null;
+  const wp    = pct(last, prev);
+  const avg   = data.length ? Math.round(total/data.length) : 0;
+
+  // Group totals
+  const groups = {};
+  const gorder = [];
+  data.forEach(r => {
+    if (!groups[r.group]) { groups[r.group]=0; gorder.push(r.group); }
+    groups[r.group] += r.amount;
+  });
+  const lastG = gorder.length ? groups[gorder[gorder.length-1]] : 0;
+  const prevG = gorder.length>1 ? groups[gorder[gorder.length-2]] : null;
+  const gp    = pct(lastG, prevG);
+
+  document.getElementById('summary-grid').innerHTML = `
+    <div class="summary-card accent">
+      <div class="sc-label">All-time revenue</div>
+      <div class="sc-val">${mk(total)}</div>
+      <div class="sc-sub">${data.length} weeks</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Latest week</div>
+      <div class="sc-val" style="color:${u.color}">${mk(last)}</div>
+      <div class="sc-sub">${wp!==null ? growBadge(wp)+' vs prev' : '—'}</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Weekly average</div>
+      <div class="sc-val">${mk(avg)}</div>
+      <div class="sc-sub neut" style="color:var(--gray);">per week</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Group growth</div>
+      <div class="sc-val">${gp!==null ? (parseFloat(gp)>=0?'+':'')+gp+'%' : '—'}</div>
+      <div class="sc-sub" style="color:${gp&&parseFloat(gp)>=0?'var(--green)':'var(--red)'};">${gorder.length>=2?gorder[gorder.length-2]+' → '+gorder[gorder.length-1]:'—'}</div>
+    </div>
+  `;
+
+  // Allocation (GameZone only)
+  const allocSec = document.getElementById('alloc-section');
+  if (currentUnit === 'gamezone' && total > 0) {
+    allocSec.style.display = 'block';
+    const segs = [
+      {label:'Resources 50%', frac:0.5, val:total*0.5, color:'#1D9E75', tc:'#04342C'},
+      {label:'Savings 40%',   frac:0.4, val:total*0.4, color:'#AFA9EC', tc:'#26215C'},
+      {label:'Emg 10%',       frac:0.1, val:total*0.1, color:'#EF9F27', tc:'#412402'},
+    ];
+    document.getElementById('alloc-bar').innerHTML = segs.map(s =>
+      `<div class="alloc-seg" style="flex:${s.frac};background:${s.color};color:${s.tc};">${s.label}</div>`
+    ).join('');
+    document.getElementById('alloc-legend').innerHTML = segs.map(s =>
+      `<div class="alloc-legend-item"><div class="alloc-dot" style="background:${s.color};"></div>${mk(s.val)}</div>`
+    ).join('');
+  } else {
+    allocSec.style.display = 'none';
+  }
+
+  // Chart
+  const labels = data.map(r => r.week.replace(' 2026',''));
+  const vals   = data.map(r => r.amount);
+  if (trendChartInst) trendChartInst.destroy();
+  if (data.length) {
+    trendChartInst = new Chart(document.getElementById('trendChart'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          data: vals,
+          backgroundColor: vals.map(v => v === Math.min(...vals) && vals.length > 1 ? '#E24B4A' : u.color + 'CC'),
+          borderRadius: 4, borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend:{display:false}, tooltip:{callbacks:{label:ctx=>mk(ctx.raw)}} },
+        scales: {
+          x: { ticks:{font:{size:9},maxRotation:45,autoSkip:true,maxTicksLimit:8}, grid:{display:false} },
+          y: { ticks:{callback:v=>'MK '+(v>=1000?(v/1000).toFixed(0)+'k':v),font:{size:9}}, grid:{color:'rgba(0,0,0,0.05)'} }
+        }
+      }
+    });
+  } else {
+    document.getElementById('trendChart').getContext('2d').clearRect(0,0,999,999);
+  }
+
+  // Insights
+  const insights = generateInsights(data, currentUnit);
+  document.getElementById('insights-section').innerHTML = insights.length
+    ? `<div class="section-hdr"><h2>Insights</h2></div>` + insights.map(ins =>
+        `<div class="insight-card" style="background:${ins.bg};border-left-color:${ins.color};">
+          <div class="ic-title">${ins.title}</div>
+          <div class="ic-body">${ins.body}</div>
+        </div>`
+      ).join('')
+    : '';
+}
+
+function generateInsights(data, unit) {
+  if (!data.length) return [];
+  const ins = [];
+  const vals  = data.map(r => r.amount);
+  const total = vals.reduce((a,b)=>a+b,0);
+  const avg   = Math.round(total/vals.length);
+  const last3 = vals.slice(-3);
+  const minV  = Math.min(...vals);
+  const minIdx = vals.indexOf(minV);
+
+  // Stabilisation
+  if (last3.length===3) {
+    const spread = Math.max(...last3)-Math.min(...last3);
+    if (spread < 3000) {
+      ins.push({title:'Stable high floor', body:`Last ${last3.length} weeks averaged ${mk(Math.round(last3.reduce((a,b)=>a+b,0)/last3.length))} with minimal variance — a strong consistent baseline.`, color:'#1D9E75', bg:'#F0FDF8'});
+    }
+  }
+
+  // Dip alert
+  if (vals.length>2 && minV < avg*0.85) {
+    ins.push({title:`⚠ Revenue dip — ${data[minIdx].week}`, body:`${mk(minV)} was ${Math.abs(Math.round((minV/avg-1)*100))}% below average. Investigate the cause to prevent recurrence.`, color:'#E24B4A', bg:'#FFF5F5'});
+  }
+
+  // Group growth
+  const groups={}, gorder=[];
+  data.forEach(r=>{ if(!groups[r.group]){groups[r.group]=0;gorder.push(r.group);} groups[r.group]+=r.amount; });
+  if (gorder.length>=2) {
+    const last=groups[gorder[gorder.length-1]], prev2=groups[gorder[gorder.length-2]];
+    const gp=((last-prev2)/prev2*100).toFixed(1);
+    const sign=gp>=0?'+':'';
+    ins.push({title:`Group growth: ${sign}${gp}%`, body:`${gorder[gorder.length-2]} → ${gorder[gorder.length-1]}: ${mk(prev2)} → ${mk(last)}.`, color:'#0F6E56', bg:'#F0FDFA'});
+  }
+
+  // GameZone savings note
+  if (unit==='gamezone') {
+    ins.push({title:'Savings built', body:`${mk(total*0.4)} accumulated (40% allocation). Emergency fund: ${mk(total*0.1)} — approx ${(total*0.1/avg).toFixed(1)} weeks of revenue.`, color:'#AFA9EC', bg:'#F5F3FF'});
+  }
+
+  return ins;
+}
+
+// ── ENTRY FORM ────────────────────────────────────────────────────────
+function updateEntryUnit() {
+  const unit = document.getElementById('entry-unit').value;
+  const preview = document.getElementById('splits-preview');
+  preview.style.display = unit==='gamezone' ? 'block' : 'none';
+  previewSplits();
+}
+
+function previewSplits() {
+  const amt = parseFloat(document.getElementById('entry-amount').value)||0;
+  const unit = document.getElementById('entry-unit').value;
+  if (unit!=='gamezone' || !amt) { document.getElementById('splits-preview').style.display='none'; return; }
+  document.getElementById('splits-preview').style.display='block';
+  document.getElementById('sp-res').textContent = mk(amt*0.5);
+  document.getElementById('sp-sav').textContent = mk(amt*0.4);
+  document.getElementById('sp-emg').textContent = mk(amt*0.1);
+}
+
+function submitEntry() {
+  const unit   = document.getElementById('entry-unit').value;
+  const week   = document.getElementById('entry-week').value.trim();
+  const group  = document.getElementById('entry-group').value.trim();
+  const amount = parseFloat(document.getElementById('entry-amount').value);
+  const notes  = document.getElementById('entry-notes').value.trim();
+
+  if (!week || !group || isNaN(amount) || amount<=0) {
+    toast('Please fill in all required fields'); return;
+  }
+
+  const entry = { unit, week, group, amount, notes, timestamp: new Date().toISOString() };
+  db.push(entry);
+  saveDB();
+  syncEntry(entry);
+  toast('Entry saved ✓');
+  clearEntryForm();
+  if (currentUnit !== unit) switchUnit(unit, null);
+  renderDashboard();
+}
+
+function clearEntryForm() {
+  ['entry-week','entry-group','entry-amount','entry-notes'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('splits-preview').style.display='none';
+}
+
+// ── HISTORY ───────────────────────────────────────────────────────────
+function renderHistory() {
+  const data = getUnitData(currentUnit);
+  document.getElementById('history-count').textContent = data.length + ' records';
+
+  if (!data.length) {
+    document.getElementById('history-table').innerHTML = `
+      <div class="empty-state">
+        <div class="es-icon">📭</div>
+        <p>No entries yet for ${UNITS[currentUnit].name}.<br>Tap + Add Entry to get started.</p>
+      </div>`;
+    return;
+  }
+
+  const groups={}, gorder=[];
+  data.forEach(r=>{ if(!groups[r.group]){groups[r.group]=[];gorder.push(r.group);} groups[r.group].push(r); });
+
+  const isgz = currentUnit==='gamezone';
+  const cols  = isgz ? '2fr 1.2fr 1fr 1fr 0.8fr' : '2fr 1.5fr 1fr 0.8fr';
+  let html = '';
+
+  gorder.forEach(g => {
+    const rows = groups[g];
+    const gtotal = rows.reduce((a,r)=>a+r.amount,0);
+    html += `<div class="group-row-label">${g} — Total: ${mk(gtotal)}</div>`;
+    html += `<div class="table-card">`;
+    html += `<div class="table-header" style="grid-template-columns:${cols};">
+      <span>Week</span><span>Total</span>
+      ${isgz?'<span>Resources</span><span>Savings</span>':''}
+      <span>vs Prev</span>
+    </div>`;
+    rows.forEach((r,i) => {
+      const prev = i>0?rows[i-1].amount:null;
+      const p    = pct(r.amount,prev);
+      html += `<div class="table-row" style="grid-template-columns:${cols};">
+        <span style="font-size:12px;color:#1a1a1a;">${r.week}</span>
+        <span style="font-size:12px;font-weight:600;">${mk(r.amount)}</span>
+        ${isgz?`<span style="font-size:11px;color:var(--teal);">${mk(r.amount*0.5)}</span><span style="font-size:11px;color:var(--purple);">${mk(r.amount*0.4)}</span>`:''}
+        <span style="font-size:11px;">${growBadge(p)}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+
+  document.getElementById('history-table').innerHTML = html;
+}
+
+// ── SETUP ─────────────────────────────────────────────────────────────
+function renderSetup() {
+  document.getElementById('local-count').textContent = db.length;
+  document.getElementById('sync-count').textContent  = db.length;
+  const pill = document.getElementById('conn-status-pill');
+  if (sheetUrl) {
+    pill.textContent = 'Configured'; pill.className = 'status-pill ok';
+  } else {
+    pill.textContent = 'Not configured'; pill.className = 'status-pill pending';
+  }
+  const ls = localStorage.getItem('gc_last_sync');
+  document.getElementById('last-sync-time').textContent = ls ? new Date(ls).toLocaleString() : 'Never';
+}
+
+function saveSheetUrl() {
+  sheetUrl = document.getElementById('sheet-url').value.trim();
+  localStorage.setItem('gc_sheet_url', sheetUrl);
+}
+
+function copyScript() {
+  navigator.clipboard.writeText(document.getElementById('script-code').innerText)
+    .then(()=>toast('Script copied to clipboard ✓'))
+    .catch(()=>toast('Copy failed — select manually'));
+}
+
+async function testConnection() {
+  if (!sheetUrl) { toast('Paste your Web App URL first'); return; }
+  toast('Testing connection…', 4000);
+  try {
+    const r = await fetch(sheetUrl, {
+      method:'POST', body:JSON.stringify({action:'read'})
+    });
+    if (r.ok) {
+      toast('Connection successful ✓');
+      document.getElementById('conn-status-pill').textContent='Connected';
+      document.getElementById('conn-status-pill').className='status-pill ok';
+      localStorage.setItem('gc_last_sync', new Date().toISOString());
+      renderSetup();
+    } else { toast('Connection failed — check URL'); }
+  } catch(e) {
+    toast('Could not reach sheet — check URL & CORS settings');
+  }
+}
+
+async function syncEntry(entry) {
+  if (!sheetUrl) return;
+  try {
+    await fetch(sheetUrl, {
+      method:'POST',
+      body: JSON.stringify({action:'write', ...entry})
+    });
+    localStorage.setItem('gc_last_sync', new Date().toISOString());
+  } catch(e) { /* silent fail, data is saved locally */ }
+}
+
+async function syncNow() {
+  if (!sheetUrl) { toast('Set up Google Sheets in Settings first'); return; }
+  toast('Syncing…', 3000);
+  try {
+    const r = await fetch(sheetUrl, {method:'POST', body:JSON.stringify({action:'read'})});
+    if (r.ok) {
+      const json = await r.json();
+      if (json.rows && json.rows.length>1) {
+        const remote = json.rows.slice(1).map(row=>({
+          unit:row[0], week:row[1], group:row[2],
+          amount:parseFloat(row[3])||0, notes:row[4]||'', timestamp:row[5]||''
+        })).filter(r=>r.unit&&r.week&&r.amount>0);
+        if (remote.length > db.length) {
+          db = remote; saveDB();
+          toast(`Synced ${remote.length} records ✓`);
+        } else {
+          toast('Already up to date ✓');
+        }
+        localStorage.setItem('gc_last_sync', new Date().toISOString());
+        if (currentScreen==='dashboard') renderDashboard();
+        if (currentScreen==='history')   renderHistory();
+      }
+    } else { toast('Sync failed'); }
+  } catch(e) { toast('Sync error — check connection'); }
+}
+
+function exportCSV() {
+  if (!db.length) { toast('No data to export'); return; }
+  const headers = 'unit,week,group,amount,resources,savings,emergency,notes,timestamp\n';
+  const rows = db.map(r =>
+    `${r.unit},"${r.week}","${r.group}",${r.amount},${Math.round(r.amount*0.5)},${Math.round(r.amount*0.4)},${Math.round(r.amount*0.1)},"${r.notes||''}","${r.timestamp||''}"`
+  ).join('\n');
+  const blob = new Blob([headers+rows], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'GoldenCircle_data_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  toast('CSV exported ✓');
+}
+
+function clearAllData() {
+  if (!confirm('Clear ALL local data? This cannot be undone.')) return;
+  db = []; saveDB();
+  toast('All local data cleared');
+  renderDashboard(); renderHistory(); renderSetup();
+}
+
+// ── BOOT ──────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    document.getElementById('splash').classList.add('hidden');
+    renderDashboard();
+  }, 1400);
+});
+</script>
+</body>
+</html>
