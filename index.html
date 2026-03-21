@@ -582,7 +582,7 @@ let currentUnit = 'gamezone';
 let currentScreen = 'dashboard';
 let chartInst = null;
 let db = JSON.parse(localStorage.getItem('gc_v2_data') || '[]');
-let sheetUrl = localStorage.getItem('gc_sheet_url') || '';
+let sheetUrl = localStorage.getItem('gc_sheet_url') || 'https://script.google.com/macros/s/AKfycbx0LkJuVef4rZQGLSBT1hqfdbt3zKJjwNt9a97uWk1t0xdnORkj5g8WMsvobOw_ZczT/exec';
 
 // Seed GameZone data
 if (!db.find(r => r.unit === 'gamezone')) {
