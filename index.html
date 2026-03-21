@@ -269,6 +269,10 @@ body {
 .table-header { display:grid; padding:9px 13px; background:var(--surface2); }
 .table-header span { font-size:10px; color:var(--gold); font-weight:600; text-transform:uppercase; letter-spacing:0.05em; }
 .table-row { display:grid; padding:10px 13px; border-bottom:1px solid var(--border2); align-items:center; }
+.row-actions { display:flex; gap:6px; justify-content:flex-end; }
+.row-btn { padding:4px 10px; border-radius:8px; font-size:11px; font-weight:600; cursor:pointer; border:none; font-family:'Outfit',sans-serif; }
+.row-btn.edit { background:rgba(212,168,67,0.12); color:var(--gold); }
+.row-btn.del  { background:rgba(226,75,74,0.12); color:var(--red); }
 .table-row:last-child { border-bottom:none; }
 .table-row:nth-child(even) { background:rgba(255,255,255,0.02); }
 .group-label { padding:7px 13px; background:rgba(212,168,67,0.08); font-size:10px; font-weight:600; color:var(--gold); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--border2); }
@@ -283,7 +287,7 @@ body {
 .nav-item { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; padding:4px 0; }
 .nav-icon { width:20px; height:20px; }
 .nav-icon svg { width:100%; height:100%; stroke:rgba(255,255,255,0.25); fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; transition:stroke 0.2s; }
-.nav-label { font-size:10px; color:rgba(255,255,255,0.25); transition:color 0.2s; font-weight:500; }
+.nav-label { font-size:9px; color:rgba(255,255,255,0.25); transition:color 0.2s; font-weight:500; }
 .nav-item.active .nav-icon svg { stroke:var(--gold); }
 .nav-item.active .nav-label   { color:var(--gold); }
 
@@ -406,7 +410,7 @@ body {
     <div class="screen active" id="screen-dashboard">
       <div class="section-hdr" style="margin-top:4px;">
         <h2 id="dash-title">GameZone</h2>
-        <span id="dash-period"></span>
+        <span id="dash-period" style="cursor:pointer;color:var(--gold);" onclick="showHistory()">History ›</span>
       </div>
       <div class="gold-divider"></div>
       <div id="user-badge-wrap"></div>
@@ -527,13 +531,73 @@ body {
       </div>
 
       <div class="setup-card">
+        <h3>Change my PIN</h3>
+        <p style="font-size:12px;color:var(--gray);margin-bottom:12px;">Updates your PIN on this device only.</p>
+        <div class="field-group">
+          <label>Current PIN</label>
+          <input type="password" id="pin-current" placeholder="••••" maxlength="4" inputmode="numeric">
+        </div>
+        <div class="field-group">
+          <label>New PIN (4 digits)</label>
+          <input type="password" id="pin-new" placeholder="••••" maxlength="4" inputmode="numeric">
+        </div>
+        <div class="field-group">
+          <label>Confirm new PIN</label>
+          <input type="password" id="pin-confirm" placeholder="••••" maxlength="4" inputmode="numeric">
+        </div>
+        <button class="btn-primary" onclick="changePin()">Update PIN</button>
+      </div>
+
+      <div class="setup-card">
         <h3>Data management</h3>
         <div class="status-row"><span>Local records</span><span style="font-size:12px;color:var(--gray);" id="local-count">0</span></div>
-        <div class="status-row"><span>App version</span><span style="font-size:12px;color:var(--gray);">2.0.0</span></div>
+        <div class="status-row"><span>App version</span><span style="font-size:12px;color:var(--gray);">2.1.0</span></div>
         <button class="btn-primary" onclick="pushAllToSheet()" style="margin-bottom:8px;">Push all local data to sheet</button>
         <button class="btn-secondary" onclick="exportCSV()">Export CSV</button>
         <button class="btn-danger" onclick="clearAll()">Clear all local data</button>
       </div>
+
+    </div><!-- /screen-settings -->
+
+    <!-- OVERVIEW -->
+    <div class="screen" id="screen-overview">
+      <div class="section-hdr" style="margin-top:4px;"><h2>The Golden Circle</h2><span id="overview-score"></span></div>
+      <div class="gold-divider"></div>
+      <div id="overview-body"></div>
+    </div>
+
+    <!-- WAR ROOM -->
+    <div class="screen" id="screen-warroom">
+      <div class="section-hdr" style="margin-top:4px;"><h2>War Room</h2><span style="font-size:11px;color:var(--gold);">C.E.C directives</span></div>
+      <div class="gold-divider"></div>
+      <div id="warroom-body"></div>
+    </div>
+
+    <!-- ASK THE CIRCLE -->
+    <div class="screen" id="screen-ask">
+      <div class="section-hdr" style="margin-top:4px;"><h2>Ask the Circle</h2><span style="font-size:11px;color:var(--gold);">AI analyst</span></div>
+      <div class="gold-divider"></div>
+      <div id="ask-body">
+        <div class="entry-card" style="margin-bottom:14px;">
+          <div style="font-size:12px;color:var(--gray);margin-bottom:12px;line-height:1.6;">Ask anything about your Golden Circle data. The AI reads your actual numbers and responds intelligently.</div>
+          <div class="field-group">
+            <label>Your question</label>
+            <input type="text" id="ask-input" placeholder="e.g. Which unit is underperforming?" onkeydown="if(event.key==='Enter')askCircle()">
+          </div>
+          <button class="btn-primary" onclick="askCircle()">Ask the Circle ✦</button>
+        </div>
+        <div id="ask-response"></div>
+        <div style="margin-top:12px;">
+          <div style="font-size:11px;color:var(--gray);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.06em;">Suggested questions</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div class="member-pill" style="text-align:left;border-radius:10px;padding:10px 14px;" onclick="document.getElementById('ask-input').value=this.textContent;askCircle()">Which unit is performing best right now?</div>
+            <div class="member-pill" style="text-align:left;border-radius:10px;padding:10px 14px;" onclick="document.getElementById('ask-input').value=this.textContent;askCircle()">Should we reinvest our GameZone savings?</div>
+            <div class="member-pill" style="text-align:left;border-radius:10px;padding:10px 14px;" onclick="document.getElementById('ask-input').value=this.textContent;askCircle()">What was our best performing month?</div>
+            <div class="member-pill" style="text-align:left;border-radius:10px;padding:10px 14px;" onclick="document.getElementById('ask-input').value=this.textContent;askCircle()">Are we on track to hit our Q2 targets?</div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     </div>
   </div>
@@ -542,15 +606,23 @@ body {
   <nav class="bottom-nav">
     <div class="nav-item active" onclick="switchScreen('dashboard',this)">
       <div class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
-      <span class="nav-label">Dashboard</span>
+      <span class="nav-label">Home</span>
+    </div>
+    <div class="nav-item" onclick="switchScreen('overview',this)">
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+      <span class="nav-label">Overview</span>
     </div>
     <div class="nav-item" onclick="switchScreen('entry',this)">
       <div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
-      <span class="nav-label">Add Entry</span>
+      <span class="nav-label">Add</span>
     </div>
-    <div class="nav-item" onclick="switchScreen('history',this)">
-      <div class="nav-icon"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
-      <span class="nav-label">History</span>
+    <div class="nav-item" onclick="switchScreen('warroom',this)">
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+      <span class="nav-label">War Room</span>
+    </div>
+    <div class="nav-item" onclick="switchScreen('ask',this)">
+      <div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+      <span class="nav-label">Ask</span>
     </div>
     <div class="nav-item" onclick="switchScreen('settings',this)">
       <div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
@@ -575,6 +647,133 @@ const UNITS = {
   mse:      { name:'MSE Investments',   color:'#AFA9EC', splits:false, chartType:'line' },
   partner:  { name:'Partnership',       color:'#EF9F27', splits:false, chartType:'bar'  },
 };
+
+// Target config per unit — period + default amount
+const TARGET_CONFIG = {
+  gamezone: { period:'weekly',  label:'Weekly target',  default:75000  },
+  agro:     { period:'weekly',  label:'Weekly target',  default:50000  },
+  mse:      { period:'monthly', label:'Monthly target', default:500000 },
+  partner:  { period:'yearly',  label:'Yearly target',  default:500000 },
+};
+function getTarget(unit) {
+  return parseInt(localStorage.getItem('gc_target_'+unit)||TARGET_CONFIG[unit].default||50000);
+}
+function setTarget(unit, val) {
+  localStorage.setItem('gc_target_'+unit, val);
+}
+function getTargetProgress(unit) {
+  const data = unitData(unit);
+  const config = TARGET_CONFIG[unit];
+  const target = getTarget(unit);
+  if (!data.length) return { current:0, target, pct:0, period:config.period };
+
+  let current = 0;
+  const now = new Date();
+
+  if (config.period === 'weekly') {
+    // Latest single week entry
+    current = data[data.length-1].amount;
+  } else if (config.period === 'monthly') {
+    // Sum entries from current calendar month
+    const thisMonth = now.toLocaleString('en-GB',{month:'long',year:'numeric'});
+    const thisMonthShort = now.toLocaleString('en-GB',{month:'short',year:'numeric'});
+    current = data
+      .filter(r => r.week.includes(now.getFullYear()) ||
+                   r.group.toLowerCase().includes(now.toLocaleString('en-GB',{month:'long'}).toLowerCase()))
+      .reduce((a,r)=>a+r.amount,0);
+    // Fallback — use last group total
+    if (!current) {
+      const groups={},gorder=[];
+      data.forEach(r=>{ if(!groups[r.group]){groups[r.group]=0;gorder.push(r.group);} groups[r.group]+=r.amount; });
+      current = gorder.length ? groups[gorder[gorder.length-1]] : 0;
+    }
+  } else if (config.period === 'yearly') {
+    // Sum all entries for current year
+    current = data
+      .filter(r => r.week.includes(now.getFullYear()) || r.timestamp?.includes(now.getFullYear()))
+      .reduce((a,r)=>a+r.amount,0);
+    if (!current) current = data.reduce((a,r)=>a+r.amount,0);
+  }
+
+  const pct = Math.min(Math.round((current/target)*100), 100);
+  return { current, target, pct, period:config.period };
+}
+
+// ── ACHIEVEMENTS ───────────────────────────────────────────────────────
+const BADGES = [
+  { id:'first_entry',   icon:'✦', name:'First Step',      desc:'Logged your first entry' },
+  { id:'century',       icon:'💰', name:'First Century',   desc:'MK 100,000+ in a single week' },
+  { id:'golden_week',   icon:'🏆', name:'Golden Week',     desc:'Best week ever recorded' },
+  { id:'unbreakable',   icon:'🔥', name:'Unbreakable',     desc:'4 consecutive weeks above target' },
+  { id:'comeback',      icon:'⚡', name:'The Comeback',    desc:'Bounced back after a dip' },
+  { id:'golden_group',  icon:'🌟', name:'Golden Group',    desc:'Group total exceeded MK 300,000' },
+  { id:'full_circle',   icon:'⭕', name:'Full Circle',     desc:'All 4 units have entries' },
+  { id:'consistency',   icon:'📈', name:'Consistency',     desc:'10 entries logged across any unit' },
+];
+
+function getUnlockedBadges() {
+  return JSON.parse(localStorage.getItem('gc_badges')||'[]');
+}
+function unlockBadge(id) {
+  const unlocked = getUnlockedBadges();
+  if (!unlocked.includes(id)) {
+    unlocked.push(id);
+    localStorage.setItem('gc_badges', JSON.stringify(unlocked));
+    const badge = BADGES.find(b=>b.id===id);
+    if (badge) setTimeout(()=>toast(`${badge.icon} Badge unlocked: ${badge.name}!`, 3500), 500);
+  }
+}
+function checkBadges() {
+  if (db.length >= 1) unlockBadge('first_entry');
+  if (db.length >= 10) unlockBadge('consistency');
+  const units = [...new Set(db.map(r=>r.unit))];
+  if (units.length >= 4) unlockBadge('full_circle');
+  Object.keys(UNITS).forEach(unit => {
+    const data = unitData(unit);
+    const vals = data.map(r=>r.amount);
+    if (vals.some(v=>v>=100000)) unlockBadge('century');
+    const maxV = Math.max(...vals);
+    const target = getTarget(unit);
+    // Unbreakable — 4 consecutive above target
+    for (let i=0;i<=vals.length-4;i++) {
+      if (vals.slice(i,i+4).every(v=>v>=target)) { unlockBadge('unbreakable'); break; }
+    }
+    // Comeback — dip then recover
+    for (let i=1;i<vals.length-1;i++) {
+      if (vals[i]<vals[i-1] && vals[i+1]>vals[i]) { unlockBadge('comeback'); break; }
+    }
+    // Groups
+    const groups={},gorder=[];
+    data.forEach(r=>{ if(!groups[r.group]){groups[r.group]=0;gorder.push(r.group);} groups[r.group]+=r.amount; });
+    if (Object.values(groups).some(v=>v>=300000)) unlockBadge('golden_group');
+    // Golden week
+    if (vals.length>0 && Math.max(...vals) === Math.max(...db.map(r=>r.amount))) unlockBadge('golden_week');
+  });
+}
+
+// ── WAR ROOM ───────────────────────────────────────────────────────────
+function getWarRoomPosts() {
+  return JSON.parse(localStorage.getItem('gc_warroom')||'[]');
+}
+function addWarRoomPost(text) {
+  const posts = getWarRoomPosts();
+  posts.unshift({ text, author: currentUser?.name||'C.E.C', time: new Date().toISOString() });
+  localStorage.setItem('gc_warroom', JSON.stringify(posts.slice(0,20)));
+}
+
+// ── GOLDEN SCORE ───────────────────────────────────────────────────────
+function calcGoldenScore(unit) {
+  const data = unitData(unit);
+  if (!data.length) return null;
+  const prog = getTargetProgress(unit);
+  return Math.min(100, prog.pct);
+}
+function overallScore() {
+  const units = Object.keys(UNITS);
+  const scores = units.map(u=>calcGoldenScore(u)).filter(s=>s!==null);
+  if (!scores.length) return null;
+  return Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
+}
 
 // ── STATE ──────────────────────────────────────────────────────────────
 let currentUser = null;
@@ -626,7 +825,8 @@ function doLogin() {
   if (!name) { err.textContent = 'Enter your name'; return; }
   if (!pin)  { err.textContent = 'Enter your PIN'; return; }
   if (!member) { err.textContent = 'Name not recognised'; return; }
-  if (pin !== member.pin) { err.textContent = 'Incorrect PIN — try again'; return; }
+  const storedPin = localStorage.getItem('gc_pin_'+name) || member.pin;
+  if (pin !== storedPin) { err.textContent = 'Incorrect PIN — try again'; return; }
   loginAs(name, member.role, member.initials);
 }
 
@@ -664,6 +864,16 @@ function switchScreen(name, el) {
   if (name === 'dashboard') renderDashboard();
   if (name === 'history')   renderHistory();
   if (name === 'settings')  renderSettings();
+  if (name === 'overview')  { checkBadges(); renderOverview(); }
+  if (name === 'warroom')   renderWarRoom();
+  if (name === 'ask')       {}
+}
+
+function showHistory() {
+  currentScreen = 'history';
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-history').classList.add('active');
+  renderHistory();
 }
 
 function switchUnit(unit, el) {
@@ -697,7 +907,12 @@ function renderDashboard() {
   data.forEach(r=>{ if(!groups[r.group]){groups[r.group]=0;gorder.push(r.group);} groups[r.group]+=r.amount; });
   const lastG = gorder.length ? groups[gorder[gorder.length-1]] : 0;
   const prevG = gorder.length>1 ? groups[gorder[gorder.length-2]] : null;
-  const gp    = pct(lastG, prevG);
+  // Fix: compare weekly averages not raw totals (avoids mid-month distortion)
+  const groupCounts = {};
+  data.forEach(r=>{ groupCounts[r.group]=(groupCounts[r.group]||0)+1; });
+  const lastGAvg = gorder.length ? lastG/(groupCounts[gorder[gorder.length-1]]||1) : 0;
+  const prevGAvg = gorder.length>1 ? prevG/(groupCounts[gorder[gorder.length-2]]||1) : null;
+  const gp    = pct(lastGAvg, prevGAvg);
 
   // KPI cards — MSE gets a portfolio view, others get sales view
   if (currentUnit === 'mse') {
@@ -899,6 +1114,7 @@ function submitEntry() {
   db.push(entry); saveDB();
   syncEntry(entry);
   toast('Entry saved ✓');
+  checkBadges();
   clearForm();
   if (currentUnit!==unit) { switchUnit(unit, null); }
   if (currentScreen==='dashboard') renderDashboard();
@@ -957,11 +1173,16 @@ function renderHistory() {
     html+=`<div class="table-header" style="grid-template-columns:${cols};"><span>Week</span><span>Amount</span>${isSplit?'<span>Resources</span><span>Savings</span>':''}<span>Growth</span></div>`;
     rows.forEach((r,i)=>{
       const p=pct(r.amount,i>0?rows[i-1].amount:null);
+      const globalIdx = db.indexOf(r);
       html+=`<div class="table-row" style="grid-template-columns:${cols};">
         <span style="font-size:12px;color:var(--offwhite);">${r.week}</span>
         <span style="font-size:12px;font-weight:600;color:${UNITS[currentUnit].color};">${mk(r.amount)}</span>
         ${isSplit?`<span style="font-size:11px;color:var(--emerald-lt);">${mk(r.amount*0.5)}</span><span style="font-size:11px;color:var(--purple);">${mk(r.amount*0.4)}</span>`:''}
-        <span style="font-size:11px;">${growBadge(p)}</span>
+        <span style="font-size:11px;display:flex;align-items:center;justify-content:flex-end;gap:4px;">
+          ${growBadge(p)}
+          <button class="row-btn edit" onclick="openEditModal(${globalIdx})">Edit</button>
+          <button class="row-btn del" onclick="deleteEntry(${globalIdx})">Del</button>
+        </span>
       </div>`;
     });
     html+=`</div>`;
@@ -1000,16 +1221,39 @@ async function testConn() {
   } catch { toast('Could not reach sheet — check URL'); }
 }
 
+// Offline retry queue
+function queueEntry(entry) {
+  const q = JSON.parse(localStorage.getItem('gc_sync_queue')||'[]');
+  q.push(entry);
+  localStorage.setItem('gc_sync_queue', JSON.stringify(q));
+}
+
+async function flushQueue() {
+  const q = JSON.parse(localStorage.getItem('gc_sync_queue')||'[]');
+  if (!q.length || !sheetUrl) return;
+  const remaining = [];
+  for (const entry of q) {
+    try {
+      const r = await fetch(sheetUrl,{method:'POST',body:JSON.stringify({action:'write',...entry})});
+      if (!r.ok) remaining.push(entry);
+    } catch { remaining.push(entry); }
+  }
+  localStorage.setItem('gc_sync_queue', JSON.stringify(remaining));
+  if (remaining.length === 0 && q.length > 0) toast(`${q.length} queued entries synced ✓`);
+}
+
 async function syncEntry(entry) {
-  if (!sheetUrl) return;
+  if (!sheetUrl) { queueEntry(entry); return; }
   try {
-    await fetch(sheetUrl,{method:'POST',body:JSON.stringify({action:'write',...entry})});
-    localStorage.setItem('gc_last_sync',new Date().toISOString());
-  } catch {}
+    const r = await fetch(sheetUrl,{method:'POST',body:JSON.stringify({action:'write',...entry})});
+    if (!r.ok) queueEntry(entry);
+    else localStorage.setItem('gc_last_sync',new Date().toISOString());
+  } catch { queueEntry(entry); }
 }
 
 async function syncNow() {
   if (!sheetUrl) { toast('Set up Google Sheets in Settings first'); return; }
+  await flushQueue();
   toast('Syncing…',3000);
   try {
     const r=await fetch(sheetUrl,{method:'POST',body:JSON.stringify({action:'read'})});
@@ -1025,6 +1269,84 @@ async function syncNow() {
       }
     } else toast('Sync failed');
   } catch { toast('Sync error'); }
+}
+
+// ── PIN CHANGE ────────────────────────────────────────────────────────
+function changePin() {
+  if (!currentUser) return;
+  const curr    = document.getElementById('pin-current').value.trim();
+  const newPin  = document.getElementById('pin-new').value.trim();
+  const confirm = document.getElementById('pin-confirm').value.trim();
+  const member  = MEMBERS[currentUser.name];
+  // Check against stored override or default
+  const storedPin = localStorage.getItem('gc_pin_'+currentUser.name) || member?.pin;
+  if (curr !== storedPin)   { toast('Current PIN is incorrect'); return; }
+  if (newPin.length !== 4)  { toast('New PIN must be 4 digits'); return; }
+  if (newPin !== confirm)   { toast('PINs do not match'); return; }
+  localStorage.setItem('gc_pin_'+currentUser.name, newPin);
+  ['pin-current','pin-new','pin-confirm'].forEach(id=>document.getElementById(id).value='');
+  toast('PIN updated successfully ✓');
+}
+
+// Override login to check stored PIN first
+const _origLogin = doLogin;
+
+// ── EDIT / DELETE ENTRIES ─────────────────────────────────────────────
+function openEditModal(idx) {
+  const e = db[idx];
+  if (!e) return;
+  const existing = document.getElementById('gc-edit-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'gc-edit-modal';
+  modal.innerHTML = `
+    <div class="modal-sheet">
+      <div class="modal-title">Edit entry</div>
+      <div class="field-group"><label>Week / Date</label>
+        <input type="text" id="edit-week" value="${e.week}"></div>
+      <div class="field-group"><label>Amount (MK)</label>
+        <input type="number" id="edit-amount" value="${e.amount}" min="0"></div>
+      <div class="field-group"><label>Notes</label>
+        <input type="text" id="edit-notes" value="${e.notes||''}"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveEdit(${idx})">Save</button>
+      </div>
+      <button class="btn-danger" style="margin-top:10px;width:100%;" onclick="deleteEntry(${idx})">Delete this entry</button>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function closeModal() {
+  const m = document.getElementById('gc-edit-modal');
+  if (m) m.remove();
+}
+
+function saveEdit(idx) {
+  const week   = document.getElementById('edit-week').value.trim();
+  const amount = parseFloat(document.getElementById('edit-amount').value);
+  const notes  = document.getElementById('edit-notes').value.trim();
+  if (!week || isNaN(amount) || amount <= 0) { toast('Please fill in all fields'); return; }
+  db[idx].week   = week;
+  db[idx].amount = amount;
+  db[idx].notes  = notes;
+  saveDB();
+  closeModal();
+  toast('Entry updated ✓');
+  if (currentScreen==='dashboard') renderDashboard();
+  if (currentScreen==='history')   renderHistory();
+}
+
+function deleteEntry(idx) {
+  if (!confirm('Delete this entry? This cannot be undone.')) return;
+  db.splice(idx, 1);
+  saveDB();
+  closeModal();
+  toast('Entry deleted');
+  if (currentScreen==='dashboard') renderDashboard();
+  if (currentScreen==='history')   renderHistory();
 }
 
 async function pushAllToSheet() {
@@ -1060,6 +1382,214 @@ function clearAll() {
   if (!confirm('Clear ALL local data? Cannot be undone.')) return;
   db=[]; saveDB(); toast('Data cleared');
   renderDashboard(); renderHistory(); renderSettings();
+}
+
+// ── SWITCH SCREEN — update to handle new screens ──────────────────────
+
+// ── OVERVIEW SCREEN ────────────────────────────────────────────────────
+function renderOverview() {
+  const score = overallScore();
+  document.getElementById('overview-score').innerHTML = score !== null
+    ? `<span style="font-size:13px;color:var(--gold);font-weight:600;">Score: ${score}/100</span>` : '';
+
+  const unlocked = getUnlockedBadges();
+  let html = '';
+
+  // Golden Score card
+  html += `<div class="chart-card" style="margin-bottom:14px;">
+    <div class="chart-title">Golden Score</div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
+    ${Object.keys(UNITS).map(u => {
+      const s = calcGoldenScore(u);
+      const t = getTarget(u);
+      const cfg2 = TARGET_CONFIG[u];
+      const col = s===null?'var(--gray)':s>=100?'#1D9E75':s>=75?'var(--gold)':'var(--red)';
+      return `<div style="background:var(--surface2);border-radius:12px;padding:12px;">
+        <div style="font-size:10px;color:var(--gray);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">${UNITS[u].name}</div>
+        <div style="font-size:22px;font-weight:700;font-family:'Cormorant Garamond',serif;color:${col};">${s!==null?s+'/100':'—'}</div>
+        <div style="font-size:10px;color:var(--gray);margin-top:2px;">Target: ${mk(t)} / ${TARGET_CONFIG[u].period}</div>
+        ${s!==null?`<div style="margin-top:8px;background:rgba(255,255,255,0.06);border-radius:4px;height:4px;overflow:hidden;"><div style="width:${Math.min(s,100)}%;height:100%;background:${col};border-radius:4px;"></div></div>`:''}
+      </div>`;
+    }).join('')}
+    </div>
+  </div>`;
+
+  // All units summary
+  html += `<div class="section-hdr"><h2>All units</h2></div><div class="gold-divider"></div>`;
+  Object.keys(UNITS).map(u => {
+    const data = unitData(u);
+    const total = data.reduce((a,r)=>a+r.amount,0);
+    const last  = data.length ? data[data.length-1].amount : 0;
+    const prog = getTargetProgress(u);
+    const barColor = prog.pct>=100?'#1D9E75':prog.pct>=75?'var(--gold)':'var(--red)';
+    const cfg = TARGET_CONFIG[u];
+    html += `<div class="entry-card" style="margin-bottom:10px;padding:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:600;color:var(--offwhite);">${UNITS[u].name}</div>
+        <div style="font-size:13px;font-weight:600;color:${UNITS[u].color};">${mk(prog.current)}</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.06);border-radius:4px;height:6px;overflow:hidden;margin-bottom:6px;">
+        <div style="width:${prog.pct}%;height:100%;background:${barColor};border-radius:4px;transition:width 0.5s;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--gray);">
+        <span>${prog.pct}% of ${cfg.period} target (${mk(prog.target)})</span>
+        <span>Total: ${mk(total)} · ${data.length} entries</span>
+      </div>
+    </div>`;
+  });
+
+  // Badges
+  html += `<div class="section-hdr" style="margin-top:8px;"><h2>Achievements</h2><span>${unlocked.length}/${BADGES.length} unlocked</span></div><div class="gold-divider"></div>`;
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">`;
+  BADGES.forEach(b => {
+    const has = unlocked.includes(b.id);
+    html += `<div style="background:${has?'rgba(212,168,67,0.08)':'var(--surface)'};border:1px solid ${has?'rgba(212,168,67,0.3)':'var(--border2)'};border-radius:12px;padding:12px;opacity:${has?1:0.4};">
+      <div style="font-size:20px;margin-bottom:4px;">${b.icon}</div>
+      <div style="font-size:12px;font-weight:600;color:${has?'var(--gold)':'var(--gray)'};">${b.name}</div>
+      <div style="font-size:10px;color:var(--gray);margin-top:2px;line-height:1.4;">${b.desc}</div>
+    </div>`;
+  });
+  html += `</div>`;
+
+  // Targets editor
+  html += `<div class="section-hdr"><h2>Targets</h2></div><div class="gold-divider"></div>`;
+  html += `<div class="entry-card">`;
+  Object.keys(UNITS).forEach(u => {
+    const cfg = TARGET_CONFIG[u];
+    const periodLabel = cfg.period === 'weekly' ? 'MK / week' : cfg.period === 'monthly' ? 'MK / month' : 'MK / year';
+    const prog = getTargetProgress(u);
+    const barColor = prog.pct>=100?'#1D9E75':prog.pct>=75?'var(--gold)':'var(--red)';
+    html += `<div class="field-group">
+      <label>${UNITS[u].name} — ${cfg.period} target (${periodLabel})</label>
+      <input type="number" id="target-${u}" value="${getTarget(u)}" min="0" style="background:var(--surface2);">
+      <div style="margin-top:6px;background:rgba(255,255,255,0.06);border-radius:4px;height:5px;overflow:hidden;">
+        <div style="width:${prog.pct}%;height:100%;background:${barColor};border-radius:4px;"></div>
+      </div>
+      <div style="font-size:10px;color:var(--gray);margin-top:3px;">${prog.pct}% of target · ${mk(prog.current)} of ${mk(prog.target)}</div>
+    </div>`;
+  });
+  html += `<button class="btn-primary" onclick="saveTargets()">Save targets</button></div>`;
+
+  document.getElementById('overview-body').innerHTML = html;
+}
+
+function saveTargets() {
+  Object.keys(UNITS).forEach(u => {
+    const val = parseInt(document.getElementById('target-'+u).value)||0;
+    if (val > 0) setTarget(u, val);
+  });
+  toast('Targets saved ✓');
+  checkBadges();
+  renderOverview();
+}
+
+// ── WAR ROOM ────────────────────────────────────────────────────────────
+function renderWarRoom() {
+  const posts = getWarRoomPosts();
+  const isCEC = currentUser?.name === 'Jafali';
+  let html = '';
+
+  if (isCEC) {
+    html += `<div class="entry-card" style="margin-bottom:14px;">
+      <div class="entry-title" style="font-size:15px;">Post a directive</div>
+      <div class="field-group">
+        <label>Message to the team</label>
+        <input type="text" id="warroom-input" placeholder="e.g. Focus on GameZone this week..." style="background:var(--surface2);">
+      </div>
+      <button class="btn-primary" onclick="postDirective()">Post to War Room</button>
+    </div>`;
+  }
+
+  if (!posts.length) {
+    html += `<div class="empty-state"><div class="empty-icon">📋</div><p>No directives yet.${isCEC?' Post your first message above.':' Check back soon.'}</p></div>`;
+  } else {
+    posts.forEach((p,i) => {
+      const date = new Date(p.time);
+      const dateStr = date.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+      const timeStr = date.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      html += `<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:12px;padding:14px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:11px;font-weight:600;color:var(--gold);text-transform:uppercase;letter-spacing:0.06em;">${p.author} · C.E.C</span>
+          <span style="font-size:10px;color:var(--gray);">${dateStr} ${timeStr}</span>
+        </div>
+        <div style="font-size:13px;color:var(--offwhite);line-height:1.6;">${p.text}</div>
+        ${isCEC?`<button class="row-btn del" style="margin-top:10px;" onclick="deletePost(${i})">Remove</button>`:''}
+      </div>`;
+    });
+  }
+  document.getElementById('warroom-body').innerHTML = html;
+}
+
+function postDirective() {
+  const text = document.getElementById('warroom-input').value.trim();
+  if (!text) { toast('Write a message first'); return; }
+  addWarRoomPost(text);
+  document.getElementById('warroom-input').value = '';
+  toast('Posted to War Room ✓');
+  renderWarRoom();
+}
+
+function deletePost(idx) {
+  if (!confirm('Remove this directive?')) return;
+  const posts = getWarRoomPosts();
+  posts.splice(idx,1);
+  localStorage.setItem('gc_warroom', JSON.stringify(posts));
+  renderWarRoom();
+}
+
+// ── ASK THE CIRCLE ──────────────────────────────────────────────────────
+async function askCircle() {
+  const q = document.getElementById('ask-input').value.trim();
+  if (!q) { toast('Ask a question first'); return; }
+
+  const respEl = document.getElementById('ask-response');
+  respEl.innerHTML = `<div class="entry-card" style="margin-bottom:10px;">
+    <div style="font-size:12px;color:var(--gold);margin-bottom:6px;font-weight:600;">Analysing your data...</div>
+    <div style="display:flex;gap:4px;">${[1,2,3].map(()=>`<div style="width:6px;height:6px;border-radius:50%;background:var(--gold);animation:blink 1s ease-in-out infinite;"></div>`).join('')}</div>
+  </div>`;
+
+  // Build data summary for Claude
+  const summary = Object.keys(UNITS).map(u => {
+    const data = unitData(u);
+    const total = data.reduce((a,r)=>a+r.amount,0);
+    const last  = data.length ? data[data.length-1] : null;
+    const target = getTarget(u);
+    const avg   = data.length ? Math.round(total/data.length) : 0;
+    return `${UNITS[u].name}: ${data.length} entries, total MK ${total.toLocaleString()}, avg MK ${avg.toLocaleString()}/week, target MK ${target.toLocaleString()}/week, latest: MK ${last?last.amount.toLocaleString():0} on ${last?last.week:'—'}`;
+  }).join('\n');
+
+  const warroom = getWarRoomPosts().slice(0,3).map(p=>`"${p.text}" — ${p.author}`).join('; ');
+
+  const prompt = `You are the AI business analyst for The Golden Circle, a small business collective in Blantyre, Malawi run by Jafali (C.E.C), Eluni (Deputy/Finance), Christopher (Agro-Business), and Chisomo (M&E Manager).
+
+Current business data:
+${summary}
+
+Recent War Room directives: ${warroom||'None'}
+
+The user asks: "${q}"
+
+Give a concise, practical, and insightful answer in 3-5 sentences. Be specific with numbers. Speak like a sharp business advisor who knows Malawi's context. Use MK for currency.`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    const data = await resp.json();
+    const answer = data.content?.[0]?.text || 'No response received.';
+    respEl.innerHTML = `<div class="entry-card" style="margin-bottom:10px;border-left:3px solid var(--gold);background:rgba(212,168,67,0.05);">
+      <div style="font-size:11px;color:var(--gold);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.06em;">✦ The Circle responds</div>
+      <div style="font-size:13px;color:var(--offwhite);line-height:1.7;">${answer.replace(/\n/g,'<br>')}</div>
+    </div>`;
+  } catch(e) {
+    respEl.innerHTML = `<div class="entry-card"><div style="color:var(--red);font-size:13px;">Could not reach AI — check your connection and try again.</div></div>`;
+  }
 }
 
 // ── BOOT ──────────────────────────────────────────────────────────────
