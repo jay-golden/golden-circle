@@ -436,14 +436,20 @@ body {
             <option value="partner">🤝 Partnership (George)</option>
           </select>
         </div>
-        <div class="field-row">
-          <div class="field-group">
-            <label>Week / Date</label>
-            <input type="text" id="entry-week" placeholder="e.g. 22 Mar 2026">
+        <div class="field-group">
+          <label>Select date</label>
+          <input type="date" id="entry-date" onchange="autoFillFromDate()" style="background:var(--surface2);color:var(--white);">
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:10px;">
+          <div style="background:rgba(212,168,67,0.08);border:1px solid var(--border);border-radius:10px;padding:8px 14px;flex:1;">
+            <div style="font-size:10px;color:var(--gray);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">Week label</div>
+            <div style="font-size:13px;font-weight:500;color:var(--offwhite);" id="entry-week-display">— pick a date</div>
+            <input type="hidden" id="entry-week">
           </div>
-          <div class="field-group" id="entry-group-wrap">
-            <label>Group / Month</label>
-            <input type="text" id="entry-group" placeholder="e.g. March 2026">
+          <div style="background:rgba(212,168,67,0.08);border:1px solid var(--border);border-radius:10px;padding:8px 14px;flex:1;" id="entry-group-wrap">
+            <div style="font-size:10px;color:var(--gray);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">Group</div>
+            <div style="font-size:13px;font-weight:500;color:var(--gold);" id="entry-group-display">— auto</div>
+            <input type="hidden" id="entry-group">
           </div>
         </div>
         <div class="field-group">
@@ -867,6 +873,17 @@ function switchScreen(name, el) {
   if (name === 'overview')  { checkBadges(); renderOverview(); }
   if (name === 'warroom')   renderWarRoom();
   if (name === 'ask')       {}
+  if (name === 'entry') {
+    const dateEl = document.getElementById('entry-date');
+    if (!dateEl.value) {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth()+1).padStart(2,'0');
+      const dd = String(today.getDate()).padStart(2,'0');
+      dateEl.value = `${yyyy}-${mm}-${dd}`;
+      autoFillFromDate();
+    }
+  }
 }
 
 function showHistory() {
@@ -1080,6 +1097,28 @@ function buildInsights(data, unit) {
 }
 
 // ── ENTRY FORM ────────────────────────────────────────────────────────
+function autoFillFromDate() {
+  const dateVal = document.getElementById('entry-date').value;
+  if (!dateVal) return;
+  const date = new Date(dateVal + 'T00:00:00');
+  const day = date.getDate();
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthFull  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const month = monthNames[date.getMonth()];
+  const monthF = monthFull[date.getMonth()];
+  const year = date.getFullYear();
+  const weekLabel = `${String(day).padStart(2,'0')} ${month} ${year}`;
+  const groupLabel = `${monthF} ${year}`;
+  document.getElementById('entry-week').value = weekLabel;
+  document.getElementById('entry-group').value = groupLabel;
+  document.getElementById('entry-week-display').textContent = weekLabel;
+  document.getElementById('entry-group-display').textContent = groupLabel;
+  // Hide group for MSE
+  const unit = document.getElementById('entry-unit').value;
+  if (unit === 'mse') document.getElementById('entry-group').value = 'MSE Portfolio';
+  previewSplits();
+}
+
 function updateEntryUnit() {
   const u = document.getElementById('entry-unit').value;
   const hasSplits = UNITS[u].splits;
@@ -1107,9 +1146,9 @@ function submitEntry() {
   const group  = document.getElementById('entry-group').value.trim();
   const amount = parseFloat(document.getElementById('entry-amount').value);
   const notes  = document.getElementById('entry-notes').value.trim();
-  if (!week||isNaN(amount)||amount<=0) { toast('Fill in all required fields'); return; }
+  if (!week) { toast('Please select a date first'); return; }
+  if (isNaN(amount)||amount<=0) { toast('Please enter an amount'); return; }
   if (unit==='mse' && amount < 100000) { toast('MSE minimum is MK 100,000'); return; }
-  if (!group) { toast('Fill in all required fields'); return; }
   const entry = { unit, week, group, amount, notes, timestamp:new Date().toISOString(), addedBy: currentUser?.name||'unknown' };
   db.push(entry); saveDB();
   syncEntry(entry);
@@ -1121,7 +1160,9 @@ function submitEntry() {
 }
 
 function clearForm() {
-  ['entry-week','entry-group','entry-amount','entry-notes'].forEach(id=>document.getElementById(id).value='');
+  ['entry-date','entry-week','entry-group','entry-amount','entry-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('entry-week-display').textContent = '— pick a date';
+  document.getElementById('entry-group-display').textContent = '— auto';
   document.getElementById('splits-preview').style.display='none';
 }
 
