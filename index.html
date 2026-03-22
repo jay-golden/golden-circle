@@ -1611,58 +1611,153 @@ function deletePost(idx) {
 }
 
 // ── ASK THE CIRCLE ──────────────────────────────────────────────────────
-async function askCircle() {
-  const q = document.getElementById('ask-input').value.trim();
+function askCircle() {
+  const q = document.getElementById('ask-input').value.trim().toLowerCase();
   if (!q) { toast('Ask a question first'); return; }
 
   const respEl = document.getElementById('ask-response');
   respEl.innerHTML = `<div class="entry-card" style="margin-bottom:10px;">
     <div style="font-size:12px;color:var(--gold);margin-bottom:6px;font-weight:600;">Analysing your data...</div>
-    <div style="display:flex;gap:4px;">${[1,2,3].map(()=>`<div style="width:6px;height:6px;border-radius:50%;background:var(--gold);animation:blink 1s ease-in-out infinite;"></div>`).join('')}</div>
   </div>`;
 
-  // Build data summary for Claude
-  const summary = Object.keys(UNITS).map(u => {
-    const data = unitData(u);
-    const total = data.reduce((a,r)=>a+r.amount,0);
-    const last  = data.length ? data[data.length-1] : null;
-    const target = getTarget(u);
-    const avg   = data.length ? Math.round(total/data.length) : 0;
-    return `${UNITS[u].name}: ${data.length} entries, total MK ${total.toLocaleString()}, avg MK ${avg.toLocaleString()}/week, target MK ${target.toLocaleString()}/week, latest: MK ${last?last.amount.toLocaleString():0} on ${last?last.week:'—'}`;
-  }).join('\n');
-
-  const warroom = getWarRoomPosts().slice(0,3).map(p=>`"${p.text}" — ${p.author}`).join('; ');
-
-  const prompt = `You are the AI business analyst for The Golden Circle, a small business collective in Blantyre, Malawi run by Jafali (C.E.C), Eluni (Deputy/Finance), Christopher (Agro-Business), and Chisomo (M&E Manager).
-
-Current business data:
-${summary}
-
-Recent War Room directives: ${warroom||'None'}
-
-The user asks: "${q}"
-
-Give a concise, practical, and insightful answer in 3-5 sentences. Be specific with numbers. Speak like a sharp business advisor who knows Malawi's context. Use MK for currency.`;
-
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1000,
-        messages:[{role:'user',content:prompt}]
-      })
-    });
-    const data = await resp.json();
-    const answer = data.content?.[0]?.text || 'No response received.';
+  setTimeout(() => {
+    const answer = analyseQuestion(q);
     respEl.innerHTML = `<div class="entry-card" style="margin-bottom:10px;border-left:3px solid var(--gold);background:rgba(212,168,67,0.05);">
       <div style="font-size:11px;color:var(--gold);font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.06em;">✦ The Circle responds</div>
-      <div style="font-size:13px;color:var(--offwhite);line-height:1.7;">${answer.replace(/\n/g,'<br>')}</div>
+      <div style="font-size:13px;color:var(--offwhite);line-height:1.8;">${answer}</div>
     </div>`;
-  } catch(e) {
-    respEl.innerHTML = `<div class="entry-card"><div style="color:var(--red);font-size:13px;">Could not reach AI — check your connection and try again.</div></div>`;
+  }, 800);
+}
+
+function analyseQuestion(q) {
+  // Build full data picture
+  const unitStats = {};
+  Object.keys(UNITS).forEach(u => {
+    const data = unitData(u);
+    const vals = data.map(r=>r.amount);
+    const total = vals.reduce((a,b)=>a+b,0);
+    const avg = data.length ? Math.round(total/data.length) : 0;
+    const last = data.length ? vals[vals.length-1] : 0;
+    const lastEntry = data.length ? data[data.length-1] : null;
+    const target = getTarget(u);
+    const prog = getTargetProgress(u);
+    const best = vals.length ? Math.max(...vals) : 0;
+    const worst = vals.length ? Math.min(...vals) : 0;
+    const groups={},gorder=[];
+    data.forEach(r=>{ if(!groups[r.group]){groups[r.group]=0;gorder.push(r.group);} groups[r.group]+=r.amount; });
+    const lastGroupTotal = gorder.length ? groups[gorder[gorder.length-1]] : 0;
+    const prevGroupTotal = gorder.length>1 ? groups[gorder[gorder.length-2]] : null;
+    const groupGrowth = prevGroupTotal ? ((lastGroupTotal-prevGroupTotal)/prevGroupTotal*100).toFixed(1) : null;
+    unitStats[u] = { data, vals, total, avg, last, lastEntry, target, prog, best, worst, groups, gorder, lastGroupTotal, groupGrowth, name:UNITS[u].name };
+  });
+
+  const allTotal = Object.values(unitStats).reduce((a,s)=>a+s.total,0);
+  const bestUnit = Object.keys(unitStats).sort((a,b)=>unitStats[b].last-unitStats[a].last)[0];
+  const worstUnit = Object.keys(unitStats).filter(u=>unitStats[u].data.length>0).sort((a,b)=>unitStats[a].prog.pct-unitStats[b].prog.pct)[0];
+
+  // ── Answer logic based on question keywords ──────────────────────────
+  if (q.includes('best') || q.includes('perform') || q.includes('top')) {
+    const s = unitStats[bestUnit];
+    return `<b>${s.name}</b> is currently the top performer with a latest entry of <b>${mk(s.last)}</b> and a Golden Score of <b>${calcGoldenScore(bestUnit)||'—'}/100</b>. ` +
+      `It has generated <b>${mk(s.total)}</b> total across ${s.data.length} entries, averaging <b>${mk(s.avg)}</b> per entry. ` +
+      (s.groupGrowth ? `The most recent group showed <b>${s.groupGrowth >= 0 ? '+' : ''}${s.groupGrowth}%</b> growth over the previous one.` : '');
   }
+
+  if (q.includes('underperform') || q.includes('worst') || q.includes('weak') || q.includes('behind')) {
+    const s = unitStats[worstUnit];
+    const score = calcGoldenScore(worstUnit);
+    return `<b>${s.name}</b> is currently furthest from its target at <b>${s.prog.pct}%</b> of its ${TARGET_CONFIG[worstUnit].period} goal. ` +
+      `Its latest entry was <b>${mk(s.last)}</b> against a target of <b>${mk(s.target)}</b>. ` +
+      (s.data.length === 0 ? 'No entries have been recorded yet — the team should log data soon.' :
+      `The team should focus attention here before the next review meeting.`);
+  }
+
+  if (q.includes('savings') || q.includes('reinvest')) {
+    const gz = unitStats['gamezone'];
+    const savings = gz.total * 0.4;
+    const emg = gz.total * 0.1;
+    return `GameZone has accumulated <b>${mk(savings)}</b> in savings (40% allocation) and <b>${mk(emg)}</b> in emergency fund across ${gz.data.length} weeks. ` +
+      `The emergency fund represents approximately <b>${gz.avg > 0 ? (emg/gz.avg).toFixed(1) : '—'} weeks</b> of average revenue — a healthy buffer. ` +
+      `Reinvesting part of savings into GameZone operations (equipment, marketing) could accelerate Q2 growth, ` +
+      `but only after maintaining a minimum emergency fund of at least <b>${mk(gz.avg * 2)}</b>.`;
+  }
+
+  if (q.includes('month') || q.includes('best month') || q.includes('performing month')) {
+    const gz = unitStats['gamezone'];
+    if (!gz.gorder.length) return 'No monthly data recorded yet for GameZone. Start adding entries to see monthly performance.';
+    const bestGroup = gz.gorder.reduce((a,b) => gz.groups[a]>gz.groups[b]?a:b);
+    return `The best performing month for GameZone was <b>${bestGroup}</b> with a total of <b>${mk(gz.groups[bestGroup])}</b>. ` +
+      `${gz.gorder.length > 1 ? `Compared to the previous group, that was ${gz.groupGrowth ? (gz.groupGrowth >= 0 ? 'a positive' : 'a declining') + ' trend.' : ''}` : ''} ` +
+      `Across all ${gz.gorder.length} group(s) recorded, GameZone averages <b>${mk(gz.avg)}</b> per week.`;
+  }
+
+  if (q.includes('target') || q.includes('track') || q.includes('q2') || q.includes('goal')) {
+    const lines = Object.keys(UNITS).map(u => {
+      const s = unitStats[u];
+      const score = calcGoldenScore(u);
+      const status = !s.data.length ? '⬜ No data' : score >= 100 ? '✅ On target' : score >= 75 ? '🟡 Close' : '🔴 Behind';
+      return `${status} <b>${s.name}</b> — ${s.prog.pct}% of ${TARGET_CONFIG[u].period} target (${mk(s.last)} vs ${mk(s.target)})`;
+    });
+    return `Here is the current target status across all units:<br><br>${lines.join('<br>')}` +
+      `<br><br>Overall Golden Circle Score: <b>${overallScore()||'—'}/100</b>.`;
+  }
+
+  if (q.includes('total') || q.includes('overall') || q.includes('all') || q.includes('circle')) {
+    const lines = Object.keys(UNITS).map(u => {
+      const s = unitStats[u];
+      return `• <b>${s.name}:</b> ${mk(s.total)} across ${s.data.length} entries`;
+    });
+    return `The Golden Circle has generated a combined total of <b>${mk(allTotal)}</b> across all units.<br><br>` +
+      lines.join('<br>') +
+      `<br><br>GameZone savings pool: <b>${mk(unitStats['gamezone'].total * 0.4)}</b>. Keep tracking consistently for stronger insights at the April review.`;
+  }
+
+  if (q.includes('gamezone')) {
+    const s = unitStats['gamezone'];
+    return `GameZone has recorded <b>${s.data.length} entries</b> totalling <b>${mk(s.total)}</b>. ` +
+      `The weekly average is <b>${mk(s.avg)}</b> against a target of <b>${mk(s.target)}/week</b>. ` +
+      `Best week: <b>${mk(s.best)}</b>. Savings accumulated: <b>${mk(s.total*0.4)}</b>. Emergency fund: <b>${mk(s.total*0.1)}</b>.`;
+  }
+
+  if (q.includes('agro') || q.includes('agriculture') || q.includes('farm')) {
+    const s = unitStats['agro'];
+    return s.data.length === 0
+      ? `Agro-Business has no entries recorded yet. Christopher should start logging weekly revenue to enable analysis.`
+      : `Agro-Business has recorded <b>${s.data.length} entries</b> totalling <b>${mk(s.total)}</b>. ` +
+        `Weekly average: <b>${mk(s.avg)}</b> vs target <b>${mk(s.target)}</b>. Golden Score: <b>${calcGoldenScore('agro')||'—'}/100</b>.`;
+  }
+
+  if (q.includes('mse') || q.includes('invest') || q.includes('stock') || q.includes('share')) {
+    const s = unitStats['mse'];
+    return s.data.length === 0
+      ? `MSE Investments has no entries yet. Start logging share purchases to track portfolio growth.`
+      : `MSE Investments has a total portfolio of <b>${mk(s.total)}</b> across <b>${s.data.length} deposits</b>. ` +
+        `The latest deposit was <b>${mk(s.last)}</b> on ${s.lastEntry?.week||'—'}. ` +
+        `Monthly target: <b>${mk(s.target)}</b> — currently at <b>${s.prog.pct}%</b> of target.`;
+  }
+
+  if (q.includes('partner') || q.includes('george')) {
+    const s = unitStats['partner'];
+    return s.data.length === 0
+      ? `The Partnership unit has no entries yet. Log revenue to start tracking.`
+      : `Partnership has recorded <b>${mk(s.total)}</b> across ${s.data.length} entries. ` +
+        `Yearly target: <b>${mk(s.target)}</b> — currently at <b>${s.prog.pct}%</b>. Latest: <b>${mk(s.last)}</b>.`;
+  }
+
+  if (q.includes('growth') || q.includes('trend') || q.includes('growing')) {
+    const growing = Object.keys(UNITS).filter(u => unitStats[u].groupGrowth && parseFloat(unitStats[u].groupGrowth) > 0);
+    const declining = Object.keys(UNITS).filter(u => unitStats[u].groupGrowth && parseFloat(unitStats[u].groupGrowth) < 0);
+    return `Based on group-to-group comparisons: ` +
+      (growing.length ? `<b>${growing.map(u=>unitStats[u].name).join(', ')}</b> ${growing.length===1?'is':'are'} showing positive growth. ` : '') +
+      (declining.length ? `<b>${declining.map(u=>unitStats[u].name).join(', ')}</b> ${declining.length===1?'is':'are'} showing a decline — worth investigating. ` : '') +
+      `GameZone group growth: <b>${unitStats['gamezone'].groupGrowth ? (unitStats['gamezone'].groupGrowth >= 0 ? '+' : '') + unitStats['gamezone'].groupGrowth + '%' : '—'}</b>.`;
+  }
+
+  // Default — general summary
+  return `The Golden Circle currently has <b>${mk(allTotal)}</b> in combined revenue across all units. ` +
+    `<b>${unitStats[bestUnit].name}</b> is the top performer this period. ` +
+    `Overall Golden Score: <b>${overallScore()||'—'}/100</b>. ` +
+    `Try asking about a specific unit, your targets, savings, or growth trends for deeper insights.`;
 }
 
 // ── BOOT ──────────────────────────────────────────────────────────────
