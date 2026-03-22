@@ -762,9 +762,15 @@ function getWarRoomPosts() {
   return JSON.parse(localStorage.getItem('gc_warroom')||'[]');
 }
 function addWarRoomPost(text) {
+  const post = { text, author: currentUser?.name||'C.E.C', time: new Date().toISOString() };
   const posts = getWarRoomPosts();
-  posts.unshift({ text, author: currentUser?.name||'C.E.C', time: new Date().toISOString() });
+  posts.unshift(post);
   localStorage.setItem('gc_warroom', JSON.stringify(posts.slice(0,20)));
+  // Push to sheet
+  if (sheetUrl) {
+    fetch(sheetUrl,{method:'POST',body:JSON.stringify({action:'writeWarRoom', post})})
+      .catch(()=>{}); // silent fail
+  }
 }
 
 // ── GOLDEN SCORE ───────────────────────────────────────────────────────
@@ -871,7 +877,7 @@ function switchScreen(name, el) {
   if (name === 'history')   renderHistory();
   if (name === 'settings')  renderSettings();
   if (name === 'overview')  { checkBadges(); renderOverview(); }
-  if (name === 'warroom')   renderWarRoom();
+  if (name === 'warroom')   { renderWarRoom(); syncWarRoom(); }
   if (name === 'ask')       {}
   if (name === 'entry') {
     const dateEl = document.getElementById('entry-date');
@@ -1262,6 +1268,21 @@ async function testConn() {
   } catch { toast('Could not reach sheet — check URL'); }
 }
 
+// Sync war room silently when opening
+async function syncWarRoom() {
+  if (!sheetUrl) return;
+  try {
+    const wr=await fetch(sheetUrl,{method:'POST',body:JSON.stringify({action:'readWarRoom'})});
+    if (wr.ok) {
+      const wjson=await wr.json();
+      if (wjson.posts&&wjson.posts.length) {
+        localStorage.setItem('gc_warroom', JSON.stringify(wjson.posts));
+        renderWarRoom();
+      }
+    }
+  } catch {}
+}
+
 // Offline retry queue
 function queueEntry(entry) {
   const q = JSON.parse(localStorage.getItem('gc_sync_queue')||'[]');
@@ -1297,19 +1318,30 @@ async function syncNow() {
   await flushQueue();
   toast('Syncing…',3000);
   try {
+    // Sync entries
     const r=await fetch(sheetUrl,{method:'POST',body:JSON.stringify({action:'read'})});
     if (r.ok) {
       const json=await r.json();
       if (json.rows&&json.rows.length>1) {
         const remote=json.rows.slice(1).map(row=>({unit:row[0],week:row[1],group:row[2],amount:parseFloat(row[3])||0,notes:row[4]||'',timestamp:row[5]||''})).filter(r=>r.unit&&r.week&&r.amount>0);
-        if (remote.length>db.length) { db=remote; saveDB(); toast(`Synced ${remote.length} records ✓`); }
-        else toast('Already up to date ✓');
+        if (remote.length>db.length) { db=remote; saveDB(); }
         localStorage.setItem('gc_last_sync',new Date().toISOString());
-        if (currentScreen==='dashboard') renderDashboard();
-        if (currentScreen==='history')   renderHistory();
       }
-    } else toast('Sync failed');
-  } catch { toast('Sync error'); }
+    }
+    // Sync war room posts
+    const wr=await fetch(sheetUrl,{method:'POST',body:JSON.stringify({action:'readWarRoom'})});
+    if (wr.ok) {
+      const wjson=await wr.json();
+      if (wjson.posts&&wjson.posts.length) {
+        localStorage.setItem('gc_warroom', JSON.stringify(wjson.posts));
+      }
+    }
+    toast('Sync complete ✓');
+    localStorage.setItem('gc_last_sync',new Date().toISOString());
+    if (currentScreen==='dashboard') renderDashboard();
+    if (currentScreen==='history')   renderHistory();
+    if (currentScreen==='warroom')   renderWarRoom();
+  } catch { toast('Sync error — check connection'); }
 }
 
 // ── PIN CHANGE ────────────────────────────────────────────────────────
@@ -1566,7 +1598,7 @@ function postDirective() {
   if (!text) { toast('Write a message first'); return; }
   addWarRoomPost(text);
   document.getElementById('warroom-input').value = '';
-  toast('Posted to War Room ✓');
+  toast('Posted to War Room ✓ — syncing to team...');
   renderWarRoom();
 }
 
