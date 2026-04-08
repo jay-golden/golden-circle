@@ -656,10 +656,10 @@ const UNITS = {
 
 // Target config per unit — period + default amount
 const TARGET_CONFIG = {
-  gamezone: { period:'weekly',  label:'Weekly target',  default:75000  },
-  agro:     { period:'weekly',  label:'Weekly target',  default:50000  },
-  mse:      { period:'monthly', label:'Monthly target', default:500000 },
-  partner:  { period:'yearly',  label:'Yearly target',  default:500000 },
+  gamezone: { period:'weekly',  label:'Weekly target',  default:75000   },
+  agro:     { period:'weekly',  label:'Weekly target',  default:50000   },
+  mse:      { period:'monthly', label:'Monthly target', default:1200000 },
+  partner:  { period:'yearly',  label:'Yearly target',  default:1000000 },
 };
 function getTarget(unit) {
   return parseInt(localStorage.getItem('gc_target_'+unit)||TARGET_CONFIG[unit].default||50000);
@@ -707,15 +707,31 @@ function getTargetProgress(unit) {
 
 // ── ACHIEVEMENTS ───────────────────────────────────────────────────────
 const BADGES = [
-  { id:'first_entry',   icon:'✦', name:'First Step',      desc:'Logged your first entry' },
-  { id:'century',       icon:'💰', name:'First Century',   desc:'MK 100,000+ in a single week' },
-  { id:'golden_week',   icon:'🏆', name:'Golden Week',     desc:'Best week ever recorded' },
-  { id:'unbreakable',   icon:'🔥', name:'Unbreakable',     desc:'4 consecutive weeks above target' },
-  { id:'comeback',      icon:'⚡', name:'The Comeback',    desc:'Bounced back after a dip' },
-  { id:'golden_group',  icon:'🌟', name:'Golden Group',    desc:'Group total exceeded MK 300,000' },
-  { id:'full_circle',   icon:'⭕', name:'Full Circle',     desc:'All 4 units have entries' },
-  { id:'consistency',   icon:'📈', name:'Consistency',     desc:'10 entries logged across any unit' },
+  // Bronze
+  { id:'first_entry',   icon:'✦',  name:'First Step',         desc:'Log your first entry',                    rarity:'bronze',    hint:'Add any entry to unlock' },
+  { id:'consistency',   icon:'📈', name:'Consistency',         desc:'10 entries logged across any unit',       rarity:'bronze',    hint:'Keep logging weekly' },
+  { id:'comeback',      icon:'⚡', name:'The Comeback',        desc:'Bounced back after a revenue dip',        rarity:'bronze',    hint:'Recover from a low week' },
+  { id:'night_owl',     icon:'🌙', name:'Night Owl',           desc:'Entry logged after 10pm',                 rarity:'bronze',    hint:'Log an entry late at night' },
+  // Silver
+  { id:'golden_group',  icon:'🌟', name:'Golden Group',        desc:'Monthly group total exceeded MK 300,000', rarity:'silver',    hint:'Hit MK 300k in one month' },
+  { id:'full_circle',   icon:'⭕', name:'Full Circle',         desc:'All 4 units have entries recorded',       rarity:'silver',    hint:'Log entries for all 4 units' },
+  { id:'launchpad',     icon:'🚀', name:'Launchpad',           desc:'All 4 units logged in the same week',     rarity:'silver',    hint:'Log all units in one week' },
+  { id:'unbreakable',   icon:'🔥', name:'Unbreakable',         desc:'4 consecutive weeks above target',        rarity:'silver',    hint:'Stay above target for 4 weeks' },
+  // Gold
+  { id:'century',       icon:'💰', name:'First Century',       desc:'MK 100,000+ in a single week',            rarity:'gold',      hint:'Hit MK 100k in one week' },
+  { id:'golden_week',   icon:'🏆', name:'Golden Week',         desc:'Best week ever recorded for any unit',    rarity:'gold',      hint:'Break your own record' },
+  { id:'savings_king',  icon:'💎', name:'Savings King',        desc:'GameZone savings pool exceeds MK 500,000',rarity:'gold',      hint:'Keep saving consistently' },
+  // Legendary
+  { id:'diamond_hands', icon:'💠', name:'Diamond Hands',       desc:'MSE portfolio crosses MK 1,000,000',      rarity:'legendary', hint:'Invest MK 1M total in MSE' },
+  { id:'the_complete',  icon:'👑', name:'The Circle is Complete', desc:'All 11 other badges unlocked',         rarity:'legendary', hint:'Unlock every other badge first' },
 ];
+
+const RARITY_STYLES = {
+  bronze:    { bg:'linear-gradient(135deg,#2A1F0A,#3D2D10)', border:'rgba(160,100,30,0.5)',  color:'#CD7F32', label:'Bronze'    },
+  silver:    { bg:'linear-gradient(135deg,#1A1A26,#2A2A3A)', border:'rgba(180,180,200,0.4)', color:'#C0C0C0', label:'Silver'    },
+  gold:      { bg:'linear-gradient(135deg,#1E1500,#2E2000)', border:'rgba(212,168,67,0.5)',  color:'#D4A843', label:'Gold'      },
+  legendary: { bg:'linear-gradient(135deg,#0D0520,#1A0A35)', border:'rgba(180,100,255,0.6)', color:'#B06AFF', label:'Legendary' },
+};
 
 function getUnlockedBadges() {
   return JSON.parse(localStorage.getItem('gc_badges')||'[]');
@@ -734,27 +750,48 @@ function checkBadges() {
   if (db.length >= 10) unlockBadge('consistency');
   const units = [...new Set(db.map(r=>r.unit))];
   if (units.length >= 4) unlockBadge('full_circle');
+
+  // Night owl — entry after 10pm
+  if (db.some(r => { try { const h=new Date(r.timestamp).getHours(); return h>=22||h<3; } catch{return false;} })) unlockBadge('night_owl');
+
+  // Launchpad — all 4 units in same week
+  const weekMap = {};
+  db.forEach(r => {
+    if (!weekMap[r.week]) weekMap[r.week] = new Set();
+    weekMap[r.week].add(r.unit);
+  });
+  if (Object.values(weekMap).some(s => s.size >= 4)) unlockBadge('launchpad');
+
+  // Savings king — GameZone savings > 500k
+  const gzTotal = unitData('gamezone').reduce((a,r)=>a+r.amount,0);
+  if (gzTotal * 0.4 >= 500000) unlockBadge('savings_king');
+
+  // Diamond hands — MSE portfolio >= 1,000,000
+  const mseTotal = unitData('mse').reduce((a,r)=>a+r.amount,0);
+  if (mseTotal >= 1000000) unlockBadge('diamond_hands');
+
   Object.keys(UNITS).forEach(unit => {
     const data = unitData(unit);
     const vals = data.map(r=>r.amount);
+    if (!vals.length) return;
     if (vals.some(v=>v>=100000)) unlockBadge('century');
-    const maxV = Math.max(...vals);
     const target = getTarget(unit);
-    // Unbreakable — 4 consecutive above target
     for (let i=0;i<=vals.length-4;i++) {
       if (vals.slice(i,i+4).every(v=>v>=target)) { unlockBadge('unbreakable'); break; }
     }
-    // Comeback — dip then recover
     for (let i=1;i<vals.length-1;i++) {
       if (vals[i]<vals[i-1] && vals[i+1]>vals[i]) { unlockBadge('comeback'); break; }
     }
-    // Groups
     const groups={},gorder=[];
     data.forEach(r=>{ if(!groups[r.group]){groups[r.group]=0;gorder.push(r.group);} groups[r.group]+=r.amount; });
     if (Object.values(groups).some(v=>v>=300000)) unlockBadge('golden_group');
-    // Golden week
-    if (vals.length>0 && Math.max(...vals) === Math.max(...db.map(r=>r.amount))) unlockBadge('golden_week');
+    if (Math.max(...vals) === Math.max(...db.map(r=>r.amount))) unlockBadge('golden_week');
   });
+
+  // The Circle is Complete — all other badges unlocked
+  const unlocked = getUnlockedBadges();
+  const others = BADGES.filter(b=>b.id!=='the_complete').map(b=>b.id);
+  if (others.every(id=>unlocked.includes(id))) unlockBadge('the_complete');
 }
 
 // ── WAR ROOM ───────────────────────────────────────────────────────────
@@ -816,6 +853,35 @@ if (!db.find(r => r.unit === 'gamezone')) {
 // ── UTILS ──────────────────────────────────────────────────────────────
 function saveDB() { localStorage.setItem('gc_v2_data', JSON.stringify(db)); }
 function mk(n)    { return 'MK ' + Math.round(n).toLocaleString(); }
+
+// Format any date string cleanly — handles ISO, "DD Mon YYYY", or anything else
+function fmtDate(str) {
+  if (!str) return '—';
+  // Already clean format like "10 Jan 2026"
+  if (/^\d{1,2}\s[A-Za-z]{3}\s\d{4}$/.test(str.trim())) return str.trim();
+  // ISO or date-only string
+  try {
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return str;
+    const day = String(d.getDate()).padStart(2,'0');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${day} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  } catch { return str; }
+}
+
+// Format group name cleanly
+function fmtGroup(str) {
+  if (!str) return '—';
+  // Already clean like "March 2026"
+  if (/^[A-Za-z]+ \d{4}$/.test(str.trim())) return str.trim();
+  // ISO string — convert to Month YYYY
+  try {
+    const d = new Date(str);
+    if (isNaN(d.getTime())) return str;
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return `${months[d.getMonth()]} ${d.getFullYear()}`;
+  } catch { return str; }
+}
 function pct(c,p) { if(!p) return null; return ((c-p)/p*100).toFixed(1); }
 function growBadge(p) {
   if (p===null) return '<span class="neut">—</span>';
@@ -952,7 +1018,7 @@ function renderDashboard() {
       <div class="kpi-card accent">
         <div class="kpi-label">Latest deposit</div>
         <div class="kpi-val" style="color:${u.color}">${mk(last)}</div>
-        <div class="kpi-sub neut">${data.length ? data[data.length-1].week : '—'}</div>
+        <div class="kpi-sub neut">${data.length ? fmtDate(data[data.length-1].week) : '—'}</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Largest single buy</div>
@@ -980,7 +1046,7 @@ function renderDashboard() {
       <div class="kpi-card ${gp&&parseFloat(gp)<0?'red':''}">
         <div class="kpi-label">Group growth</div>
         <div class="kpi-val">${gp!==null?(parseFloat(gp)>=0?'+':'')+gp+'%':'—'}</div>
-        <div class="kpi-sub neut">${gorder.length>=2?gorder[gorder.length-2]+' → '+gorder[gorder.length-1]:'—'}</div>
+        <div class="kpi-sub neut">${gorder.length>=2?fmtGroup(gorder[gorder.length-2])+' → '+fmtGroup(gorder[gorder.length-1]):'—'}</div>
       </div>
     `;
   }
@@ -1006,7 +1072,7 @@ function renderDashboard() {
   if (chartInst) chartInst.destroy();
 
   if (data.length) {
-    const labels = data.map(r => r.week.replace(' 2026',''));
+    const labels = data.map(r => fmtDate(r.week).replace(' 2026',''));
     const vals   = data.map(r => r.amount);
     let cumulative = 0;
     const cumVals = vals.map(v => { cumulative += v; return cumulative; });
@@ -1030,7 +1096,7 @@ function renderDashboard() {
         },
         options: {
           responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>mk(ctx.raw)}} },
+          plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>mk(ctx.raw), title:items=>fmtDate(items[0].label+' 2026')}} },
           scales:{
             x:{ ticks:{color:'#8A8AA0',font:{size:9},maxRotation:45,autoSkip:true,maxTicksLimit:8}, grid:{color:'rgba(255,255,255,0.04)'} },
             y:{ ticks:{color:'#8A8AA0',callback:v=>'MK '+(v>=1000?(v/1000).toFixed(0)+'k':v),font:{size:9}}, grid:{color:'rgba(255,255,255,0.04)'} }
@@ -1192,7 +1258,7 @@ function renderHistory() {
     data.forEach(r => {
       cumTotal += r.amount;
       html2 += `<div class="table-row" style="grid-template-columns:${cols};">
-        <span style="font-size:12px;color:var(--offwhite);">${r.week}</span>
+        <span style="font-size:12px;color:var(--offwhite);">${fmtDate(r.week)}</span>
         <span style="font-size:12px;font-weight:600;color:${UNITS['mse'].color};">${mk(r.amount)}</span>
         <span style="font-size:12px;font-weight:600;color:var(--gold-lt);">${mk(cumTotal)}</span>
         <span style="font-size:11px;color:var(--gray);">${r.notes||'—'}</span>
@@ -1216,13 +1282,13 @@ function renderHistory() {
   let html='';
   gorder.forEach(g=>{
     const rows=groups[g], gtotal=rows.reduce((a,r)=>a+r.amount,0);
-    html+=`<div class="group-label">${g} — ${mk(gtotal)}</div><div class="table-card">`;
+    html+=`<div class="group-label">${fmtGroup(g)} — ${mk(gtotal)}</div><div class="table-card">`;
     html+=`<div class="table-header" style="grid-template-columns:${cols};"><span>Week</span><span>Amount</span>${isSplit?'<span>Resources</span><span>Savings</span>':''}<span>Growth</span></div>`;
     rows.forEach((r,i)=>{
       const p=pct(r.amount,i>0?rows[i-1].amount:null);
       const globalIdx = db.indexOf(r);
       html+=`<div class="table-row" style="grid-template-columns:${cols};">
-        <span style="font-size:12px;color:var(--offwhite);">${r.week}</span>
+        <span style="font-size:12px;color:var(--offwhite);">${fmtDate(r.week)}</span>
         <span style="font-size:12px;font-weight:600;color:${UNITS[currentUnit].color};">${mk(r.amount)}</span>
         ${isSplit?`<span style="font-size:11px;color:var(--emerald-lt);">${mk(r.amount*0.5)}</span><span style="font-size:11px;color:var(--purple);">${mk(r.amount*0.4)}</span>`:''}
         <span style="font-size:11px;display:flex;align-items:center;justify-content:flex-end;gap:4px;">
@@ -1511,18 +1577,47 @@ function renderOverview() {
     </div>`;
   });
 
-  // Badges
-  html += `<div class="section-hdr" style="margin-top:8px;"><h2>Achievements</h2><span>${unlocked.length}/${BADGES.length} unlocked</span></div><div class="gold-divider"></div>`;
-  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">`;
-  BADGES.forEach(b => {
-    const has = unlocked.includes(b.id);
-    html += `<div style="background:${has?'rgba(212,168,67,0.08)':'var(--surface)'};border:1px solid ${has?'rgba(212,168,67,0.3)':'var(--border2)'};border-radius:12px;padding:12px;opacity:${has?1:0.4};">
-      <div style="font-size:20px;margin-bottom:4px;">${b.icon}</div>
-      <div style="font-size:12px;font-weight:600;color:${has?'var(--gold)':'var(--gray)'};">${b.name}</div>
-      <div style="font-size:10px;color:var(--gray);margin-top:2px;line-height:1.4;">${b.desc}</div>
-    </div>`;
+  // Badges — grouped by rarity
+  const rarityOrder = ['legendary','gold','silver','bronze'];
+  const rarityLabels = {legendary:'👑 Legendary',gold:'🥇 Gold',silver:'🥈 Silver',bronze:'🥉 Bronze'};
+  html += `<div class="section-hdr" style="margin-top:8px;"><h2>Achievements</h2><span style="color:var(--gold);font-weight:600;">${unlocked.length}/${BADGES.length} unlocked</span></div><div class="gold-divider"></div>`;
+
+  // Progress bar across all badges
+  const pctUnlocked = Math.round((unlocked.length/BADGES.length)*100);
+  html += `<div style="background:var(--surface);border-radius:12px;padding:12px 14px;margin-bottom:14px;border:1px solid var(--border2);">
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gray);margin-bottom:8px;">
+      <span>Achievement progress</span><span style="color:var(--gold);font-weight:600;">${pctUnlocked}%</span>
+    </div>
+    <div style="background:rgba(255,255,255,0.06);border-radius:4px;height:6px;overflow:hidden;">
+      <div style="width:${pctUnlocked}%;height:100%;background:linear-gradient(90deg,var(--gold-dk),var(--gold));border-radius:4px;transition:width 0.6s;"></div>
+    </div>
+  </div>`;
+
+  rarityOrder.forEach(rarity => {
+    const group = BADGES.filter(b=>b.rarity===rarity);
+    const rs = RARITY_STYLES[rarity];
+    html += `<div style="font-size:11px;font-weight:600;color:${rs.color};text-transform:uppercase;letter-spacing:0.08em;margin:12px 0 8px;">${rarityLabels[rarity]}</div>`;
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">`;
+    group.forEach(b => {
+      const has = unlocked.includes(b.id);
+      const style = has ? rs : null;
+      html += `<div style="
+        background:${has ? rs.bg : 'var(--surface)'};
+        border:1px solid ${has ? rs.border : 'rgba(255,255,255,0.06)'};
+        border-radius:14px;padding:14px 12px;
+        position:relative;overflow:hidden;
+        transition:all 0.3s;
+        ${!has ? 'opacity:0.45;filter:grayscale(0.5);' : ''}
+      ">
+        ${has ? `<div style="position:absolute;top:0;right:0;background:${rs.color};color:#000;font-size:9px;font-weight:700;padding:3px 8px;border-radius:0 14px 0 8px;letter-spacing:0.06em;">${rs.label}</div>` : ''}
+        <div style="font-size:26px;margin-bottom:8px;line-height:1;">${b.icon}</div>
+        <div style="font-size:12px;font-weight:700;color:${has ? rs.color : 'var(--gray)'};margin-bottom:4px;">${b.name}</div>
+        <div style="font-size:10px;color:${has ? 'rgba(255,255,255,0.6)' : 'var(--gray)'};line-height:1.5;">${has ? b.desc : '🔒 ' + b.hint}</div>
+      </div>`;
+    });
+    html += `</div>`;
   });
-  html += `</div>`;
+  html += `<div style="height:8px;"></div>`;
 
   // Targets editor
   html += `<div class="section-hdr"><h2>Targets</h2></div><div class="gold-divider"></div>`;
