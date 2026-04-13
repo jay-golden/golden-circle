@@ -43,7 +43,24 @@ body {
   color: var(--white);
   min-height: 100dvh;
   overflow-x: hidden;
+  transition: background 0.3s, color 0.3s;
 }
+body.light-mode {
+  --obsidian:  #F5F0E8;
+  --deep:      #EDE8DC;
+  --surface:   #E8E2D4;
+  --surface2:  #DDD7C8;
+  --offwhite:  #1A1A1A;
+  --white:     #1A1A1A;
+  --gray:      #666655;
+  --border:    rgba(160,120,40,0.2);
+  --border2:   rgba(160,120,40,0.1);
+  color: #1A1A1A;
+}
+body.light-mode .topbar,
+body.light-mode .tab-scroller,
+body.light-mode .bottom-nav { background: var(--deep); border-color: rgba(160,120,40,0.15); }
+body.light-mode .main { background: var(--obsidian); }
 
 /* ── SPLASH ───────────────────────────────── */
 #splash {
@@ -166,6 +183,10 @@ body {
 
 /* ── MAIN ──────────────────────────────────── */
 .main { flex:1; overflow-y:auto; padding:14px 14px calc(80px + var(--safe-bottom)); background:var(--obsidian); }
+.ptr-indicator {
+  text-align:center; padding:10px 0; font-size:12px; color:var(--gold);
+  display:none; letter-spacing:0.06em; text-transform:uppercase;
+}
 .screen { display:none; }
 .screen.active { display:block; animation:fadeUp 0.3s ease; }
 @keyframes fadeUp { from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)} }
@@ -190,7 +211,8 @@ body {
 .kpi-card.purple::before { background:linear-gradient(90deg,#7F77DD,var(--purple)); }
 .kpi-card.red::before    { background:linear-gradient(90deg,#A32D2D,var(--red)); }
 .kpi-label { font-size:10px; color:var(--gray); font-weight:500; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px; }
-.kpi-val   { font-family:'Cormorant Garamond',serif; font-weight:700; font-size:22px; color:var(--offwhite); line-height:1; }
+.kpi-val   { font-family:'Cormorant Garamond',serif; font-weight:700; font-size:22px; color:var(--offwhite); line-height:1; transition:all 0.3s; }
+.kpi-val.counting { opacity:0.7; }
 .kpi-sub   { font-size:11px; margin-top:5px; }
 .kpi-card.gold-card { background:linear-gradient(135deg,rgba(160,120,40,0.15),rgba(212,168,67,0.08)); border-color:rgba(212,168,67,0.3); }
 .kpi-card.gold-card .kpi-val { color:var(--gold-lt); }
@@ -414,6 +436,14 @@ body {
       </div>
       <div class="gold-divider"></div>
       <div id="user-badge-wrap"></div>
+      <div class="ptr-indicator" id="ptr-indicator">↓ Syncing...</div>
+      <div id="dip-alert-wrap"></div>
+      <div id="countdown-wrap"></div>
+      <div class="period-selector">
+        <button class="period-btn active" onclick="setPeriod('all',this)">All time</button>
+        <button class="period-btn" onclick="setPeriod('month',this)">This month</button>
+        <button class="period-btn" onclick="setPeriod('last',this)">Last month</button>
+      </div>
       <div class="kpi-grid" id="kpi-grid"></div>
       <div id="alloc-section"></div>
       <div class="chart-card">
@@ -552,6 +582,25 @@ body {
           <input type="password" id="pin-confirm" placeholder="••••" maxlength="4" inputmode="numeric">
         </div>
         <button class="btn-primary" onclick="changePin()">Update PIN</button>
+      </div>
+
+      <div class="setup-card">
+        <h3>Appearance</h3>
+        <div class="status-row">
+          <span>Light mode</span>
+          <div onclick="toggleLightMode()" id="theme-toggle" style="width:44px;height:24px;border-radius:12px;background:var(--surface2);border:1px solid var(--border);cursor:pointer;position:relative;transition:background 0.3s;">
+            <div id="theme-knob" style="width:18px;height:18px;border-radius:50%;background:var(--gray);position:absolute;top:2px;left:2px;transition:all 0.3s;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="setup-card">
+        <h3>Review countdown</h3>
+        <p style="font-size:12px;color:var(--gray);margin-bottom:10px;">Set your next review meeting date to show a countdown on the dashboard.</p>
+        <div class="field-group">
+          <label>Next review date</label>
+          <input type="date" id="review-date" onchange="saveReviewDate()" style="background:var(--surface2);color:var(--white);">
+        </div>
       </div>
 
       <div class="setup-card">
@@ -919,7 +968,12 @@ function loginAs(name, role, initials) {
   document.getElementById('topbar-name').textContent = name;
   document.getElementById('topbar-role').textContent = role;
   if (sheetUrl) document.getElementById('sheet-url').value = sheetUrl;
+  applyStoredTheme();
+  // Restore review date
+  const rd = localStorage.getItem('gc_review_date');
+  if(rd) { const rdEl=document.getElementById('review-date'); if(rdEl) rdEl.value=rd; }
   renderDashboard();
+  setTimeout(initPullToRefresh, 500);
 }
 
 function doLogout() {
@@ -943,7 +997,7 @@ function switchScreen(name, el) {
   if (name === 'history')   renderHistory();
   if (name === 'settings')  renderSettings();
   if (name === 'overview')  { checkBadges(); renderOverview(); }
-  if (name === 'warroom')   { renderWarRoom(); syncWarRoom(); }
+  if (name === 'warroom')   { renderWarRoom(); syncWarRoom(); setTimeout(markWarRoomSeen,1500); }
   if (name === 'ask')       {}
   if (name === 'entry') {
     const dateEl = document.getElementById('entry-date');
@@ -977,7 +1031,7 @@ function switchUnit(unit, el) {
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────
 function renderDashboard() {
-  const data = unitData(currentUnit);
+  let data = unitData(currentUnit);
   const u    = UNITS[currentUnit];
   document.getElementById('dash-title').textContent = u.name;
   document.getElementById('dash-period').textContent = data.length ? `${data[0].week} – ${data[data.length-1].week}` : '';
@@ -986,6 +1040,9 @@ function renderDashboard() {
   document.getElementById('user-badge-wrap').innerHTML = currentUser ?
     `<div class="user-badge"><div class="ub-dot"></div><span>${currentUser.name} · ${currentUser.role}</span></div>` : '';
 
+  data = filterByPeriod(data);
+  renderDipAlerts();
+  renderCountdown();
   const total = data.reduce((a,r) => a+r.amount, 0);
   const last  = data.length ? data[data.length-1].amount : 0;
   const prev  = data.length > 1 ? data[data.length-2].amount : null;
@@ -1029,9 +1086,9 @@ function renderDashboard() {
   } else {
     document.getElementById('kpi-grid').innerHTML = `
       <div class="kpi-card gold-card">
-        <div class="kpi-label">All-time revenue</div>
-        <div class="kpi-val">${mk(total)}</div>
-        <div class="kpi-sub neut">${data.length} weeks recorded</div>
+        <div class="kpi-label">${currentPeriod==='all'?'All-time revenue':currentPeriod==='month'?'This month':'Last month'}</div>
+        <div class="kpi-val" id="kpi-total">${mk(total)}</div>
+        <div class="kpi-sub neut">${data.length} entries</div>
       </div>
       <div class="kpi-card accent">
         <div class="kpi-label">Latest week</div>
@@ -1050,6 +1107,12 @@ function renderDashboard() {
       </div>
     `;
   }
+
+  // Animate KPI numbers
+  setTimeout(()=>{
+    const el = document.getElementById('kpi-total');
+    if(el) animateCount(el, total);
+  }, 50);
 
   // Allocation bar (GameZone + Agro)
   const allocEl = document.getElementById('alloc-section');
@@ -1224,9 +1287,9 @@ function submitEntry() {
   const entry = { unit, week, group, amount, notes, timestamp:new Date().toISOString(), addedBy: currentUser?.name||'unknown' };
   db.push(entry); saveDB();
   syncEntry(entry);
-  toast('Entry saved ✓');
   checkBadges();
   clearForm();
+  showEntryConfirm(entry);
   if (currentUnit!==unit) { switchUnit(unit, null); }
   if (currentScreen==='dashboard') renderDashboard();
 }
@@ -1681,6 +1744,9 @@ function renderWarRoom() {
           <span style="font-size:10px;color:var(--gray);">${dateStr} ${timeStr}</span>
         </div>
         <div style="font-size:13px;color:var(--offwhite);line-height:1.6;">${p.text}</div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;" id="rcpt-${i}">
+          ${buildReceipts(p)}
+        </div>
         ${isCEC?`<button class="row-btn del" style="margin-top:10px;" onclick="deletePost(${i})">Remove</button>`:''}
       </div>`;
     });
@@ -1853,6 +1919,210 @@ function analyseQuestion(q) {
     `<b>${unitStats[bestUnit].name}</b> is the top performer this period. ` +
     `Overall Golden Score: <b>${overallScore()||'—'}/100</b>. ` +
     `Try asking about a specific unit, your targets, savings, or growth trends for deeper insights.`;
+}
+
+// ── PERIOD FILTER ─────────────────────────────────────────────────────
+let currentPeriod = 'all';
+function setPeriod(period, el) {
+  currentPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderDashboard();
+}
+
+function filterByPeriod(data) {
+  if (currentPeriod === 'all') return data;
+  const now = new Date();
+  const thisMonth = now.getMonth();
+  const thisYear  = now.getFullYear();
+  return data.filter(r => {
+    try {
+      const d = new Date(r.timestamp || r.week);
+      if (currentPeriod === 'month') return d.getMonth()===thisMonth && d.getFullYear()===thisYear;
+      if (currentPeriod === 'last') {
+        const lm = thisMonth===0?11:thisMonth-1;
+        const ly = thisMonth===0?thisYear-1:thisYear;
+        return d.getMonth()===lm && d.getFullYear()===ly;
+      }
+    } catch { return true; }
+    return true;
+  });
+}
+
+// ── ANIMATED COUNTER ──────────────────────────────────────────────────
+function animateCount(el, target, prefix='MK ') {
+  const duration = 600;
+  const start = performance.now();
+  const startVal = 0;
+  function step(now) {
+    const progress = Math.min((now-start)/duration, 1);
+    const eased = 1-Math.pow(1-progress,3);
+    const current = Math.round(startVal + (target-startVal)*eased);
+    el.textContent = prefix + current.toLocaleString();
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ── DIP ALERT ─────────────────────────────────────────────────────────
+function renderDipAlerts() {
+  const alerts = [];
+  Object.keys(UNITS).forEach(u => {
+    const data = filterByPeriod(unitData(u));
+    if (data.length < 2) return;
+    const vals = data.map(r=>r.amount);
+    const last = vals[vals.length-1];
+    const prev = vals[vals.length-2];
+    const drop = ((last-prev)/prev*100);
+    if (drop <= -20) {
+      alerts.push(`<div class="dip-alert">
+        <div class="da-icon">⚠️</div>
+        <div>
+          <div class="da-title">${UNITS[u].name} — Revenue dip ${drop.toFixed(1)}%</div>
+          <div class="da-body">${mk(last)} this week vs ${mk(prev)} last week. Investigate cause before next entry.</div>
+        </div>
+      </div>`);
+    }
+  });
+  const wrap = document.getElementById('dip-alert-wrap');
+  if(wrap) wrap.innerHTML = alerts.join('');
+}
+
+// ── COUNTDOWN ─────────────────────────────────────────────────────────
+function saveReviewDate() {
+  const val = document.getElementById('review-date').value;
+  if(val) localStorage.setItem('gc_review_date', val);
+  renderCountdown();
+}
+
+function renderCountdown() {
+  const wrap = document.getElementById('countdown-wrap');
+  if (!wrap) return;
+  const stored = localStorage.getItem('gc_review_date');
+  if (!stored) { wrap.innerHTML=''; return; }
+  const review = new Date(stored + 'T00:00:00');
+  const now = new Date();
+  const diff = review - now;
+  if (diff <= 0) { wrap.innerHTML=`<div class="countdown-card"><div style="font-size:13px;color:var(--gold);font-weight:600;">🎯 Review day is today!</div></div>`; return; }
+  const days  = Math.floor(diff/(1000*60*60*24));
+  const hours = Math.floor((diff%(1000*60*60*24))/(1000*60*60));
+  const mins  = Math.floor((diff%(1000*60*60))/(1000*60));
+  const reviewDate = review.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  wrap.innerHTML = `<div class="countdown-card">
+    <div>
+      <div style="font-size:10px;color:var(--gray);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Next review — ${reviewDate}</div>
+      <div style="font-size:11px;color:var(--gold);">Stay sharp. The Circle reviews soon.</div>
+    </div>
+    <div class="cd-blocks">
+      <div class="cd-block"><div class="cd-num">${String(days).padStart(2,'0')}</div><div class="cd-lbl">Days</div></div>
+      <div class="cd-sep">:</div>
+      <div class="cd-block"><div class="cd-num">${String(hours).padStart(2,'0')}</div><div class="cd-lbl">Hrs</div></div>
+      <div class="cd-sep">:</div>
+      <div class="cd-block"><div class="cd-num">${String(mins).padStart(2,'0')}</div><div class="cd-lbl">Min</div></div>
+    </div>
+  </div>`;
+}
+
+// Update countdown every minute
+setInterval(() => { if(currentScreen==='dashboard') renderCountdown(); }, 60000);
+
+// ── LIGHT MODE ────────────────────────────────────────────────────────
+function toggleLightMode() {
+  const isLight = document.body.classList.toggle('light-mode');
+  localStorage.setItem('gc_light_mode', isLight?'1':'0');
+  const knob = document.getElementById('theme-knob');
+  const toggle = document.getElementById('theme-toggle');
+  if(knob) {
+    knob.style.left = isLight?'22px':'2px';
+    knob.style.background = isLight?'var(--gold)':'var(--gray)';
+  }
+  if(toggle) toggle.style.background = isLight?'rgba(212,168,67,0.2)':'var(--surface2)';
+}
+
+function applyStoredTheme() {
+  if(localStorage.getItem('gc_light_mode')==='1') toggleLightMode();
+}
+
+// ── ENTRY CONFIRMATION ────────────────────────────────────────────────
+function showEntryConfirm(entry) {
+  const existing = document.getElementById('gc-confirm-modal');
+  if(existing) existing.remove();
+  const u = UNITS[entry.unit];
+  const isSplit = u.splits;
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'gc-confirm-modal';
+  modal.innerHTML = `<div class="confirm-sheet">
+    <div style="text-align:center;margin-bottom:18px;">
+      <div style="font-size:28px;margin-bottom:6px;">✅</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--offwhite);">Entry Saved</div>
+      <div style="font-size:12px;color:var(--gold);margin-top:2px;">Syncing to team sheet...</div>
+    </div>
+    <div class="confirm-row"><span class="cr-label">Unit</span><span class="cr-val">${u.name}</span></div>
+    <div class="confirm-row"><span class="cr-label">Date</span><span class="cr-val">${fmtDate(entry.week)}</span></div>
+    <div class="confirm-row"><span class="cr-label">Group</span><span class="cr-val">${fmtGroup(entry.group)}</span></div>
+    <div class="confirm-row"><span class="cr-label">Amount</span><span class="cr-val" style="color:var(--gold);">${mk(entry.amount)}</span></div>
+    ${isSplit ? `
+    <div class="confirm-row"><span class="cr-label">Resources (50%)</span><span class="cr-val" style="color:var(--emerald-lt);">${mk(entry.amount*0.5)}</span></div>
+    <div class="confirm-row"><span class="cr-label">Savings (40%)</span><span class="cr-val" style="color:var(--purple);">${mk(entry.amount*0.4)}</span></div>
+    <div class="confirm-row"><span class="cr-label">Emergency (10%)</span><span class="cr-val" style="color:var(--amber);">${mk(entry.amount*0.1)}</span></div>` : ''}
+    ${entry.notes ? `<div class="confirm-row"><span class="cr-label">Notes</span><span class="cr-val">${entry.notes}</span></div>` : ''}
+    <button class="btn-primary" style="margin-top:16px;" onclick="document.getElementById('gc-confirm-modal').remove()">Done</button>
+  </div>`;
+  document.body.appendChild(modal);
+  // Auto close after 5s
+  setTimeout(()=>{ const m=document.getElementById('gc-confirm-modal'); if(m) m.remove(); }, 5000);
+}
+
+// ── PULL TO REFRESH ───────────────────────────────────────────────────
+function initPullToRefresh() {
+  const main = document.getElementById('main-content');
+  if (!main) return;
+  let startY = 0, pulling = false;
+  main.addEventListener('touchstart', e => { if(main.scrollTop===0) { startY=e.touches[0].clientY; pulling=true; } }, {passive:true});
+  main.addEventListener('touchmove', e => {
+    if (!pulling) return;
+    const diff = e.touches[0].clientY - startY;
+    const ptr = document.getElementById('ptr-indicator');
+    if (diff > 60 && ptr) { ptr.style.display='block'; ptr.textContent='↓ Release to sync...'; }
+  }, {passive:true});
+  main.addEventListener('touchend', e => {
+    if (!pulling) return;
+    pulling = false;
+    const diff = e.changedTouches[0].clientY - startY;
+    const ptr = document.getElementById('ptr-indicator');
+    if (diff > 60) {
+      if(ptr) ptr.textContent='Syncing...';
+      syncNow().then(()=>{ if(ptr) ptr.style.display='none'; });
+    } else { if(ptr) ptr.style.display='none'; }
+  });
+}
+
+// ── WAR ROOM READ RECEIPTS ────────────────────────────────────────────
+function buildReceipts(p) {
+  const names = ['Jafali','Eluni','Christopher','Chisomo'];
+  return names.map(function(n) {
+    var seen = p.seenBy && p.seenBy.includes(n);
+    var color = seen ? 'var(--emerald-lt)' : 'var(--gray)';
+    var dotClass = seen ? 'seen' : 'unseen';
+    return '<span style="font-size:10px;color:'+color+';display:flex;align-items:center;gap:3px;"><span class="receipt-dot '+dotClass+'"></span>'+n+'</span>';
+  }).join('');
+}
+
+function markWarRoomSeen() {
+  const posts = getWarRoomPosts();
+  const user = currentUser?.name;
+  if (!user || !posts.length) return;
+  const updated = posts.map(p => {
+    if (!p.seenBy) p.seenBy = [];
+    if (!p.seenBy.includes(user)) p.seenBy.push(user);
+    return p;
+  });
+  localStorage.setItem('gc_warroom', JSON.stringify(updated));
+  // Push seen status to sheet
+  if (sheetUrl) {
+    fetch(sheetUrl,{method:'POST',body:JSON.stringify({action:'markSeen',user,posts:updated})}).catch(()=>{});
+  }
 }
 
 // ── BOOT ──────────────────────────────────────────────────────────────
